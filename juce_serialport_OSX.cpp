@@ -243,16 +243,26 @@ void SerialPortInputStream::run()
 			if(notify==NOTIFY_ALWAYS||((notify==NOTIFY_ON_CHAR) && (c == notifyChar)))
 					sendChangeMessage();
 		}
+        else if (bytesread == -1)
+        {
+            port->close ();
+            break;
+        }
 	}
 }
 int SerialPortInputStream::read(void *destBuffer, int maxBytesToRead)
 {
-	const ScopedLock l(bufferCriticalSection);
-	if(maxBytesToRead>bufferedbytes)maxBytesToRead=bufferedbytes;
-	memcpy(destBuffer, buffer.getData(), maxBytesToRead);
-	buffer.removeSection(0,maxBytesToRead);
-	bufferedbytes-=maxBytesToRead;
-	return maxBytesToRead;
+    if (port && port->portDescriptor != -1)
+    {
+        const ScopedLock l(bufferCriticalSection);
+        if(maxBytesToRead>bufferedbytes)maxBytesToRead=bufferedbytes;
+        memcpy(destBuffer, buffer.getData(), maxBytesToRead);
+        buffer.removeSection(0,maxBytesToRead);
+        bufferedbytes-=maxBytesToRead;
+        return maxBytesToRead;
+    }
+    else
+        return -1;
 }
 /////////////////////////////////
 // SerialPortOutputStream
