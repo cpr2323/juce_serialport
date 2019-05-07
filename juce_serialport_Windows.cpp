@@ -297,7 +297,13 @@ void SerialPortInputStream::run()
     {
         unsigned char c;
         DWORD bytesread = 0;
-        WaitCommEvent(port->portHandle, &dwEventMask, &ov);
+        const auto wceReturn = WaitCommEvent(port->portHandle, &dwEventMask, &ov);
+        if (wceReturn == 0 && GetLastError () != ERROR_IO_PENDING)
+        {
+            port->close ();
+            break;
+        }
+
         if (WAIT_OBJECT_0 == WaitForSingleObject(ov.hEvent, 100))
         {
             DWORD dwMask;
@@ -329,12 +335,17 @@ void SerialPortInputStream::run()
 }
 int SerialPortInputStream::read(void *destBuffer, int maxBytesToRead)
 {
-    const ScopedLock l(bufferCriticalSection);
-    if (maxBytesToRead > bufferedbytes)maxBytesToRead = bufferedbytes;
-    memcpy(destBuffer, buffer.getData(), maxBytesToRead);
-    buffer.removeSection(0, maxBytesToRead);
-    bufferedbytes -= maxBytesToRead;
-    return maxBytesToRead;
+    if (port && port->portHandle != 0)
+    {
+        const ScopedLock l (bufferCriticalSection);
+        if (maxBytesToRead > bufferedbytes)maxBytesToRead = bufferedbytes;
+        memcpy (destBuffer, buffer.getData (), maxBytesToRead);
+        buffer.removeSection (0, maxBytesToRead);
+        bufferedbytes -= maxBytesToRead;
+        return maxBytesToRead;
+    }
+    else
+        return -1;
 }
 /////////////////////////////////
 // SerialPortInputStream
