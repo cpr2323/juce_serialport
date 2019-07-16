@@ -314,7 +314,7 @@ void SerialPortInputStream::run()
                     do
                     {
                         ResetEvent(ovRead.hEvent);
-                        ReadFile(port->portHandle, &c, 1, &bytesread, &ov);
+                        ReadFile(port->portHandle, &c, 1, &bytesread, &ovRead);
                         if (bytesread == 1)
                         {
                             const ScopedLock l(bufferCriticalSection);
