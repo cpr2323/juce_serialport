@@ -127,9 +127,9 @@ bool SerialPort::exists()
 {
     return portHandle ? true : false;
 }
-bool SerialPort::open(const String & portPath)
+bool SerialPort::open(const String & newPortPath)
 {
-    this->portPath = portPath;
+    portPath = newPortPath;
     portHandle = CreateFile((const char*)portPath.toUTF8(), GENERIC_READ | GENERIC_WRITE, 0, NULL, OPEN_EXISTING, FILE_FLAG_OVERLAPPED, NULL);
     if (portHandle == INVALID_HANDLE_VALUE)
     {
@@ -166,7 +166,7 @@ bool SerialPort::setConfig(const SerialPortConfig & config)
     dcb.XonLim = 2048;
     dcb.XoffLim = 512;
     dcb.BaudRate = config.bps;
-    dcb.ByteSize = config.databits;
+    dcb.ByteSize = (BYTE)config.databits;
     dcb.fParity = true;
     switch (config.parity)
     {
@@ -335,20 +335,18 @@ void SerialPortInputStream::run()
 }
 int SerialPortInputStream::read(void *destBuffer, int maxBytesToRead)
 {
-    if (port && port->portHandle != 0)
-    {
-        const ScopedLock l (bufferCriticalSection);
-        if (maxBytesToRead > bufferedbytes)maxBytesToRead = bufferedbytes;
-        memcpy (destBuffer, buffer.getData (), maxBytesToRead);
-        buffer.removeSection (0, maxBytesToRead);
-        bufferedbytes -= maxBytesToRead;
-        return maxBytesToRead;
-    }
-    else
+    if (!port || port->portHandle == 0)
         return -1;
+
+    const ScopedLock l (bufferCriticalSection);
+    if (maxBytesToRead > bufferedbytes)maxBytesToRead = bufferedbytes;
+    memcpy (destBuffer, buffer.getData (), maxBytesToRead);
+    buffer.removeSection (0, maxBytesToRead);
+    bufferedbytes -= maxBytesToRead;
+    return maxBytesToRead;
 }
 /////////////////////////////////
-// SerialPortInputStream
+// SerialPortOutputStream
 /////////////////////////////////
 void SerialPortOutputStream::run()
 {
@@ -386,9 +384,12 @@ void SerialPortOutputStream::run()
 }
 bool SerialPortOutputStream::write(const void *dataToWrite, size_t howManyBytes)
 {
+    if (! port || port->portHandle == 0)
+        return false;
+
     bufferCriticalSection.enter();
     buffer.append(dataToWrite, howManyBytes);
-    bufferedbytes += howManyBytes;
+    bufferedbytes += (int)howManyBytes;
     bufferCriticalSection.exit();
     triggerWrite.signal();
     return true;

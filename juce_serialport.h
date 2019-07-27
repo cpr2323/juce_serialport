@@ -189,6 +189,7 @@ public:
 	};
 	virtual juce::int64 getPosition(){return -1;}
 	virtual bool setPosition(juce::int64 /*newPosition*/){return false;}
+    SerialPort* getPort() { return port; }
 private:
 	SerialPort * port;
 	int bufferedbytes;
@@ -216,6 +217,7 @@ public:
 	virtual bool setPosition(juce::int64 /*newPosition*/){return false;}
 	virtual juce::int64 getPosition(){return -1;}
 	virtual bool write(const void *dataToWrite, size_t howManyBytes);
+    SerialPort* getPort() { return port; }
 private:
 	SerialPort * port;
 	int bufferedbytes;
