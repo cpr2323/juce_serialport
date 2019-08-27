@@ -127,6 +127,7 @@ bool SerialPort::exists()
 {
     return portHandle ? true : false;
 }
+
 bool SerialPort::open(const String & newPortPath)
 {
     portPath = newPortPath;
@@ -156,6 +157,7 @@ bool SerialPort::open(const String & newPortPath)
 
     return true;
 }
+
 bool SerialPort::setConfig(const SerialPortConfig & config)
 {
     if (!portHandle)return false;
@@ -231,6 +233,7 @@ bool SerialPort::setConfig(const SerialPortConfig & config)
     }
     return (SetCommState(portHandle, &dcb) ? true : false);
 }
+
 bool SerialPort::getConfig(SerialPortConfig & config)
 {
     if (!portHandle)return false;
@@ -279,6 +282,7 @@ bool SerialPort::getConfig(SerialPortConfig & config)
         config.flowcontrol = SerialPortConfig::FLOWCONTROL_NONE;
     return true;
 }
+
 /////////////////////////////////
 // SerialPortInputStream
 /////////////////////////////////
@@ -333,6 +337,12 @@ void SerialPortInputStream::run()
     CloseHandle(ovRead.hEvent);
     CloseHandle(ov.hEvent);
 }
+
+void SerialPortInputStream::cancel ()
+{
+    const auto result = CancelIoEx (port->portHandle, nullptr);
+}
+
 int SerialPortInputStream::read(void *destBuffer, int maxBytesToRead)
 {
     if (!port || port->portHandle == 0)
@@ -345,6 +355,7 @@ int SerialPortInputStream::read(void *destBuffer, int maxBytesToRead)
     bufferedbytes -= maxBytesToRead;
     return maxBytesToRead;
 }
+
 /////////////////////////////////
 // SerialPortOutputStream
 /////////////////////////////////
@@ -382,6 +393,12 @@ void SerialPortOutputStream::run()
     }
     CloseHandle(ov.hEvent);
 }
+
+void SerialPortOutputStream::cancel ()
+{
+    const auto result = CancelIoEx (port->portHandle, nullptr);
+}
+
 bool SerialPortOutputStream::write(const void *dataToWrite, size_t howManyBytes)
 {
     if (! port || port->portHandle == 0)

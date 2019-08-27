@@ -139,6 +139,7 @@ public:
 	}
 	virtual ~SerialPortInputStream()
 	{
+        cancel ();
 		signalThreadShouldExit();
 		waitForThreadToExit(500);
 	}
@@ -189,6 +190,7 @@ public:
 	};
 	virtual juce::int64 getPosition(){return -1;}
 	virtual bool setPosition(juce::int64 /*newPosition*/){return false;}
+    virtual void cancel ();
     SerialPort* getPort() { return port; }
 private:
 	SerialPort * port;
@@ -209,6 +211,7 @@ public:
 	}
 	virtual ~SerialPortOutputStream()
 	{
+        cancel ();
 		signalThreadShouldExit();
 		waitForThreadToExit(500);
 	}
@@ -217,6 +220,7 @@ public:
 	virtual bool setPosition(juce::int64 /*newPosition*/){return false;}
 	virtual juce::int64 getPosition(){return -1;}
 	virtual bool write(const void *dataToWrite, size_t howManyBytes);
+    virtual void cancel ();
     SerialPort* getPort() { return port; }
 private:
 	SerialPort * port;
