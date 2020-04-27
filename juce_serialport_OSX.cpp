@@ -41,7 +41,7 @@ StringPairArray SerialPort::getSerialPortPaths()
 		DBG("SerialPort::getSerialPortPaths : IOServiceMatching failed");
 		return SerialPortPaths;
 	}
-	CFDictionarySetValue(classesToMatch, CFSTR(kIOSerialBSDTypeKey), CFSTR(kIOSerialBSDRS232Type));    
+	CFDictionarySetValue(classesToMatch, CFSTR(kIOSerialBSDTypeKey), CFSTR(kIOSerialBSDAllTypes));    
 	if (KERN_SUCCESS != IOServiceGetMatchingServices(masterPort, classesToMatch, &matchingServices))
 	{
 		DBG("SerialPort::getSerialPortPaths : IOServiceGetMatchingServices failed");
