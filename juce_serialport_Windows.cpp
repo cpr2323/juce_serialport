@@ -127,8 +127,10 @@ bool SerialPort::exists()
 {
     return portHandle ? true : false;
 }
+
 bool SerialPort::open(const String & newPortPath)
 {
+    canceled = false;
     portPath = newPortPath;
     portHandle = CreateFile((const char*)portPath.toUTF8(), GENERIC_READ | GENERIC_WRITE, 0, NULL, OPEN_EXISTING, FILE_FLAG_OVERLAPPED, NULL);
     if (portHandle == INVALID_HANDLE_VALUE)
@@ -155,6 +157,17 @@ bool SerialPort::open(const String & newPortPath)
         DBG("SetCommMask error");
 
     return true;
+}
+
+void SerialPort::cancel ()
+{
+    if (!canceled)
+    {
+        canceled = true;
+//        if (portHandle != nullptr)
+//            const auto result = CancelIoEx (portHandle, nullptr);
+    }
+
 }
 bool SerialPort::setConfig(const SerialPortConfig & config)
 {
@@ -231,6 +244,7 @@ bool SerialPort::setConfig(const SerialPortConfig & config)
     }
     return (SetCommState(portHandle, &dcb) ? true : false);
 }
+
 bool SerialPort::getConfig(SerialPortConfig & config)
 {
     if (!portHandle)return false;
@@ -279,6 +293,7 @@ bool SerialPort::getConfig(SerialPortConfig & config)
         config.flowcontrol = SerialPortConfig::FLOWCONTROL_NONE;
     return true;
 }
+
 /////////////////////////////////
 // SerialPortInputStream
 /////////////////////////////////
@@ -298,25 +313,32 @@ void SerialPortInputStream::run()
         unsigned char c;
         DWORD bytesread = 0;
         const auto wceReturn = WaitCommEvent(port->portHandle, &dwEventMask, &ov);
+//         if (dwEventMask != 0)
+//             Logger::outputDebugString (" dwEventMask: " + String::toHexString (dwEventMask));
         if (wceReturn == 0 && GetLastError () != ERROR_IO_PENDING)
         {
+            //Logger::outputDebugString ("SerialPortInputStream error");
             port->close ();
             break;
         }
 
-        if (WAIT_OBJECT_0 == WaitForSingleObject(ov.hEvent, 100))
+        if (/*(dwEventMask & EV_RXCHAR) && */WAIT_OBJECT_0 == WaitForSingleObject(ov.hEvent, 100))
         {
             DWORD dwMask;
             if (GetCommMask(port->portHandle, &dwMask))
             {
-                if (dwMask & EV_RXCHAR)
+                //if (dwMask & EV_RXCHAR)
                 {
                     do
                     {
                         ResetEvent(ovRead.hEvent);
+                        //Logger::outputDebugString (" ReadFile");
                         ReadFile(port->portHandle, &c, 1, &bytesread, &ovRead);
+//                         if (GetLastError () != ERROR_SUCCESS)
+//                             Logger::outputDebugString (" [SerialPortInputStream, getLastError: " + String (GetLastError ()) + "]");
                         if (bytesread == 1)
                         {
+                            //Logger::outputDebugString (" add data to input buffer");
                             const ScopedLock l(bufferCriticalSection);
                             buffer.ensureSize(bufferedbytes + 1);
                             buffer[bufferedbytes] = c;
@@ -332,7 +354,18 @@ void SerialPortInputStream::run()
     }
     CloseHandle(ovRead.hEvent);
     CloseHandle(ov.hEvent);
+//    Logger::outputDebugString ("SerialPortInputStream::run exiting");
+
 }
+
+void SerialPortInputStream::cancel ()
+{
+    if (!port || port->portHandle == 0)
+        return;
+
+    port->cancel ();
+}
+
 int SerialPortInputStream::read(void *destBuffer, int maxBytesToRead)
 {
     if (!port || port->portHandle == 0)
@@ -345,6 +378,7 @@ int SerialPortInputStream::read(void *destBuffer, int maxBytesToRead)
     bufferedbytes -= maxBytesToRead;
     return maxBytesToRead;
 }
+
 /////////////////////////////////
 // SerialPortOutputStream
 /////////////////////////////////
@@ -361,27 +395,45 @@ void SerialPortOutputStream::run()
         if (bufferedbytes)
         {
             DWORD byteswritten = 0;
-            bufferCriticalSection.enter();
+            bufferCriticalSection.enter ();
             DWORD bytestowrite = bufferedbytes > writeBufferSize ? writeBufferSize : bufferedbytes;
-            memcpy(tempbuffer, buffer.getData(), bytestowrite);
-            bufferCriticalSection.exit();
-            ResetEvent(ov.hEvent);
-            int iRet = WriteFile(port->portHandle, tempbuffer, bytestowrite, &byteswritten, &ov);
-            if (iRet == 0)
+            memcpy (tempbuffer, buffer.getData (), bytestowrite);
+            bufferCriticalSection.exit ();
+            ResetEvent (ov.hEvent);
+            //Logger::outputDebugString (" WriteFile");
+            int iRet = WriteFile (port->portHandle, tempbuffer, bytestowrite, &byteswritten, &ov);
+            if (threadShouldExit () || (GetLastError () != ERROR_SUCCESS && GetLastError () != ERROR_IO_PENDING))
+                continue;
+            if (iRet == 0 && GetLastError() == ERROR_IO_PENDING)
             {
-                WaitForSingleObject(ov.hEvent, INFINITE);
+                //Logger::outputDebugString (" WaitForSingleObject");
+                DWORD waitResult = WaitForSingleObject (ov.hEvent, 1000);
+                if (threadShouldExit () || waitResult != WAIT_OBJECT_0)
+                    continue;
             }
-            GetOverlappedResult(port->portHandle, &ov, &byteswritten, TRUE);
+            //Logger::outputDebugString (" [getLastError: " + String(GetLastError ()) + "]");
+            //Logger::outputDebugString (" GetOverlappedResult ");
+            GetOverlappedResult (port->portHandle, &ov, &byteswritten, TRUE);
             if (byteswritten)
             {
-                const ScopedLock l(bufferCriticalSection);
-                buffer.removeSection(0, byteswritten);
+                const ScopedLock l (bufferCriticalSection);
+                buffer.removeSection (0, byteswritten);
                 bufferedbytes -= byteswritten;
             }
         }
     }
     CloseHandle(ov.hEvent);
+//    Logger::outputDebugString ("SerialPortOutputStream::run exiting");
 }
+
+void SerialPortOutputStream::cancel ()
+{
+    if (!port || port->portHandle == 0)
+        return;
+
+    port->cancel ();
+}
+
 bool SerialPortOutputStream::write(const void *dataToWrite, size_t howManyBytes)
 {
     if (! port || port->portHandle == 0)

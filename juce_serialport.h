@@ -120,12 +120,14 @@ public:
 	juce::String getPortPath(){return portPath;}
 	static juce::StringPairArray getSerialPortPaths();
 	bool exists();
+    virtual void cancel ();
 	juce_UseDebuggingNewOperator
 private:
 	friend class SerialPortInputStream;
 	friend class SerialPortOutputStream;
 	void * portHandle;
 	int portDescriptor;
+    bool canceled;
 	juce::String portPath;
 };
 
@@ -140,7 +142,8 @@ public:
 	virtual ~SerialPortInputStream()
 	{
 		signalThreadShouldExit();
-		waitForThreadToExit(500);
+        cancel ();
+        waitForThreadToExit (500);
 	}
 	enum notifyflag{NOTIFY_OFF=0, NOTIFY_ON_CHAR, NOTIFY_ALWAYS};
 	void setNotify(notifyflag _notify=NOTIFY_ON_CHAR, char c=0)
@@ -189,6 +192,7 @@ public:
 	};
 	virtual juce::int64 getPosition(){return -1;}
 	virtual bool setPosition(juce::int64 /*newPosition*/){return false;}
+    virtual void cancel ();
     SerialPort* getPort() { return port; }
 private:
 	SerialPort * port;
@@ -210,13 +214,19 @@ public:
 	virtual ~SerialPortOutputStream()
 	{
 		signalThreadShouldExit();
-		waitForThreadToExit(500);
+        cancel ();
+        waitForThreadToExit (5000);
+//        juce::Logger::outputDebugString ("waiting for SerialPortOutputStream thread to end");
+//         if (! waitForThreadToExit (5000))
+//             juce::Logger::outputDebugString ("thread did not exit");
+//         juce::Logger::outputDebugString ("~SerialPortOutputStream");
 	}
 	virtual void run();
 	virtual void flush(){}
 	virtual bool setPosition(juce::int64 /*newPosition*/){return false;}
 	virtual juce::int64 getPosition(){return -1;}
 	virtual bool write(const void *dataToWrite, size_t howManyBytes);
+    virtual void cancel ();
     SerialPort* getPort() { return port; }
 private:
 	SerialPort * port;
