@@ -9,6 +9,8 @@
 
 #if JUCE_MAC
 
+#define Point DUMMY_Point
+#define Component DUMMY_Component
 #include <stdio.h>
 #include <sys/ioctl.h>
 #include <fcntl.h>
@@ -18,7 +20,8 @@
 #include <IOKit/IOBSD.h>
 #include <IOKit/storage/IOCDTypes.h>
 #include <IOKit/serial/ioss.h>
-
+#undef Point
+#undef Component
 #include "juce_serialport.h"
 
 StringPairArray SerialPort::getSerialPortPaths()
@@ -120,6 +123,10 @@ bool SerialPort::open(const String & portPath)
     }
 	return true;
 }
+void SerialPort::cancel ()
+{
+}
+
 bool SerialPort::setConfig(const SerialPortConfig & config)
 {
 	if(-1==portDescriptor)return false;
@@ -227,6 +234,10 @@ bool SerialPort::getConfig(SerialPortConfig & config)
 /////////////////////////////////
 // SerialPortInputStream
 /////////////////////////////////
+void SerialPortInputStream::cancel ()
+{
+}
+
 void SerialPortInputStream::run()
 {
 	while(port && (port->portDescriptor!=-1) && !threadShouldExit())
@@ -267,6 +278,10 @@ int SerialPortInputStream::read(void *destBuffer, int maxBytesToRead)
 /////////////////////////////////
 // SerialPortOutputStream
 /////////////////////////////////
+void SerialPortOutputStream::cancel ()
+{
+}
+
 void SerialPortOutputStream::run()
 {
 	unsigned char tempbuffer[writeBufferSize];
