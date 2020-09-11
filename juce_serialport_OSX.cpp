@@ -141,7 +141,8 @@ bool SerialPort::setConfig(const SerialPortConfig & config)
 	options.c_cflag |= CREAD; //enable reciever (daft)
 	options.c_cflag |= CLOCAL;//don't monitor modem control lines
 	//baud and bits
-	cfsetspeed(&options, config.bps);
+    cfsetspeed(&options, 9600); //Just set 9600 to get this to pass,
+                                //we'll set the actual baud rate later
 	switch(config.databits)
 	{
 		case 5: options.c_cflag |= CS5; break;
@@ -196,6 +197,13 @@ bool SerialPort::setConfig(const SerialPortConfig & config)
         DBG("SerialPort::setConfig : can't set port settings");
         return false;
     }
+    
+    int new_baud = static_cast<int> (config.bps);
+    if (ioctl (portDescriptor, _IOW('T', 2, speed_t), &new_baud, 1) == -1) {
+        DBG("SerialPort::setConfig : can't set baud rate");
+        return false;
+    }
+    
 	return true;
 }
 bool SerialPort::getConfig(SerialPortConfig & config)
