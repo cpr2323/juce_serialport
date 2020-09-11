@@ -245,8 +245,7 @@ void SerialPortInputStream::run()
 	while(port && (port->portDescriptor!=-1) && !threadShouldExit())
 	{
 		unsigned char c;
-		int bytesread=0;
-		bytesread = ::read(port->portDescriptor, &c, 1);
+		const auto bytesread = ::read(port->portDescriptor, &c, 1);
 		if(bytesread==1)
 		{
 			const ScopedLock l(bufferCriticalSection);
@@ -293,12 +292,11 @@ void SerialPortOutputStream::run()
 			triggerWrite.wait(100);
 		if(bufferedbytes)
 		{
-			int byteswritten=0;
 			bufferCriticalSection.enter();
 			int bytestowrite=bufferedbytes>writeBufferSize?writeBufferSize:bufferedbytes;
 			memcpy(tempbuffer, buffer.getData(), bytestowrite);
 			bufferCriticalSection.exit();
-			byteswritten = ::write(port->portDescriptor, tempbuffer, bytestowrite);
+			const auto byteswritten = ::write(port->portDescriptor, tempbuffer, bytestowrite);
 			if(byteswritten>0)
 			{
 				const ScopedLock l(bufferCriticalSection);

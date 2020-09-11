@@ -109,7 +109,7 @@ public:
 		open(portPath);
 		setConfig(config);
 	}
-	~SerialPort()
+	virtual ~SerialPort()
 	{
 		close();
 	}
