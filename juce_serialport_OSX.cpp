@@ -9,6 +9,8 @@
 
 #if JUCE_MAC
 
+using namespace juce;
+
 #define Point DUMMY_Point
 #define Component DUMMY_Component
 #include <stdio.h>
