@@ -190,7 +190,7 @@ public:
 		const juce::ScopedLock l(bufferCriticalSection);
 		return bufferedbytes?false:true;
 	};
-	virtual juce::int64 getPosition(){return -1;}
+	virtual juce::int64 getPosition(){return 0;}
 	virtual bool setPosition(juce::int64 /*newPosition*/){return false;}
     virtual void cancel ();
     SerialPort* getPort() { return port; }
