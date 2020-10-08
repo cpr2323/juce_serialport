@@ -20,8 +20,7 @@
 //#undef JNI_CLASS_MEMBERS
 
 #define JNI_CLASS_MEMBERS(METHOD, STATICMETHOD, FIELD, STATICFIELD, CALLBACK) \
-    METHOD (refresh, "refresh", "(Landroid/content/Context;)Ljava/lang/String;") \
-    METHOD (getName, "getName", "()Ljava/lang/String;")
+    METHOD (refresh, "refresh", "(Landroid/content/Context;)Ljava/lang/String;")
 DECLARE_JNI_CLASS_WITH_MIN_SDK (UsbSerialHelper, "com/hoho/android/usbserial/UsbSerialHelper", 23)
 #undef JNI_CLASS_MEMBERS
 
@@ -33,13 +32,6 @@ StringPairArray SerialPort::getSerialPortPaths()
     {
         auto env = getEnv();
         jobject usbSerialHelper = env->AllocObject(UsbSerialHelper);
-
-        //this is the value of the USB_SERVICE constant
-//        LocalRef<jstring> usbServiceString (javaString ("usb"));
-//        LocalRef<jobject> usbManager = LocalRef<jobject> (env->CallObjectMethod (getAppContext().get(), AndroidContext.getSystemService, usbServiceString.get()));
-
-        //bogus call just to make sure it works
-        DBG(juce::juceString ((jstring) env->CallObjectMethod (usbSerialHelper, UsbSerialHelper.getName)));
 
         auto found = juce::juceString ((jstring) env->CallObjectMethod (usbSerialHelper, UsbSerialHelper.refresh, getAppContext().get()));
         DBG(found);

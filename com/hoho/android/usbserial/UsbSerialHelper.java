@@ -31,11 +31,7 @@ import static android.content.Context.USB_SERVICE;
 public class UsbSerialHelper extends ListFragment {
 
     public void DBG(String text, Context context) {
-//        Context context = getActivity().getApplicationContext();
-        int duration = Toast.LENGTH_SHORT;
-
-        Toast toast = Toast.makeText(context, text, duration);
-        toast.show();
+        Toast.makeText(context, text, Toast.LENGTH_SHORT).show();
     }
 
     class ListItem {
@@ -138,25 +134,15 @@ public class UsbSerialHelper extends ListFragment {
         return true;
     }
 
-    String getName() {
-        return "that's my name mang";
-    }
-
     private boolean found = false;
 
     String refresh(Context context) {
         try {
-//            UsbManager usbManager = (UsbManager) getActivity().getSystemService(Context.USB_SERVICE);
             UsbManager usbManager = (UsbManager) context.getSystemService (USB_SERVICE);
-
-//        UsbSerialProber usbDefaultProber = UsbSerialProber.getDefaultProber();
-//        UsbSerialProber usbCustomProber = CustomProber.getCustomProber();
 
 //            listItems.clear();
 
             for (UsbDevice device : usbManager.getDeviceList().values()) {
-    //            UsbSerialDriver driver = usbDefaultProber.probeDevice(device);
-
                 UsbSerialDriver driver = new CdcAcmSerialDriver(device);
 
 //                if (driver != null) {
