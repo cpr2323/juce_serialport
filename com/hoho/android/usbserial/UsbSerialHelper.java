@@ -1,11 +1,9 @@
 package com.hoho.android.usbserial;
 
-import android.app.AlertDialog;
 import android.content.Context;
 import android.hardware.usb.UsbDevice;
 import android.hardware.usb.UsbManager;
 import android.os.Bundle;
-import androidx.fragment.app.Fragment;
 import androidx.fragment.app.ListFragment;
 import android.view.Menu;
 import android.view.MenuInflater;
@@ -19,13 +17,13 @@ import android.widget.Toast;
 
 import com.hoho.android.usbserial.driver.CdcAcmSerialDriver;
 import com.hoho.android.usbserial.driver.UsbSerialDriver;
-import com.hoho.android.usbserial.driver.UsbSerialProber;
+import com.hoho.android.usbserial.driver.UsbSerialPort;
 //import com.rmsl.juce.JuceMidiSupport;
 
 import java.util.ArrayList;
-import java.util.Locale;
+import java.util.List;
 
-import static android.content.Context.MIDI_SERVICE;
+
 import static android.content.Context.USB_SERVICE;
 
 public class UsbSerialHelper extends ListFragment {
@@ -134,44 +132,29 @@ public class UsbSerialHelper extends ListFragment {
         return true;
     }
 
-    private boolean found = false;
-
     String refresh(Context context) {
         try {
             UsbManager usbManager = (UsbManager) context.getSystemService (USB_SERVICE);
 
-//            listItems.clear();
-
             for (UsbDevice device : usbManager.getDeviceList().values()) {
-                UsbSerialDriver driver = new CdcAcmSerialDriver(device);
+                CdcAcmSerialDriver driver = new CdcAcmSerialDriver(device);
 
-//                if (driver != null) {
-//                    DBG("driver is NOT null", context);
-////                    for (int port = 0; port < driver.getPorts().size(); port++)
-////                        listItems.add(new ListItem(device, port, driver));
-//                } else {
-//                    DBG("driver is null", context);
-////                    listItems.add(new ListItem(device, 0, null));
-//                }
+                List<UsbSerialPort> ports = driver.getPorts();
 
-                if (! found) {
-                    DBG("Found a device!", context);
-                    found = true;
-                }
+                String allPorts = "";
+                for (UsbSerialPort s : ports)
+                    allPorts += "serialport " + s.getPortNumber() + "\n";
 
-                return "Found a device!";
+                DBG(allPorts, context);
+                return allPorts;
+
             }
-//            listAdapter.notifyDataSetChanged();
         } catch (Exception e) {
+            DBG("****************************** exception!!! ", context);
             e.printStackTrace();
         }
 
-        if (found) {
-            DBG("Found no device", context);
-            found = false;
-        }
-
-        return "Found no device";
+        return "";
     }
 
     @Override

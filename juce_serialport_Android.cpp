@@ -19,6 +19,12 @@
 //    DECLARE_JNI_CLASS_WITH_MIN_SDK (AndroidJuceMidiSupport, "com/rmsl/juce/JuceMidiSupport", 23)
 //#undef JNI_CLASS_MEMBERS
 
+//#define JNI_CLASS_MEMBERS(METHOD, STATICMETHOD, FIELD, STATICFIELD, CALLBACK) \
+////    METHOD (refresh, "refresh", "(Landroid/content/Context;)[Ljava/lang/String;")
+//      METHOD (refresh, "refresh", "(Landroid/content/Context;)Ljava/lang/String;")
+//    DECLARE_JNI_CLASS_WITH_MIN_SDK (UsbSerialHelper, "com/hoho/android/usbserial/UsbSerialHelper", 23)
+//#undef JNI_CLASS_MEMBERS
+
 #define JNI_CLASS_MEMBERS(METHOD, STATICMETHOD, FIELD, STATICFIELD, CALLBACK) \
     METHOD (refresh, "refresh", "(Landroid/content/Context;)Ljava/lang/String;")
 DECLARE_JNI_CLASS_WITH_MIN_SDK (UsbSerialHelper, "com/hoho/android/usbserial/UsbSerialHelper", 23)
@@ -26,21 +32,30 @@ DECLARE_JNI_CLASS_WITH_MIN_SDK (UsbSerialHelper, "com/hoho/android/usbserial/Usb
 
 StringPairArray SerialPort::getSerialPortPaths()
 {
-    StringPairArray SerialPortPaths;
+    StringPairArray serialPortPaths;
 
     try
     {
         auto env = getEnv();
         jobject usbSerialHelper = env->AllocObject(UsbSerialHelper);
 
-        auto found = juce::juceString ((jstring) env->CallObjectMethod (usbSerialHelper, UsbSerialHelper.refresh, getAppContext().get()));
-        DBG(found);
+        auto portNames = juce::juceString ((jstring) env->CallObjectMethod (usbSerialHelper, UsbSerialHelper.refresh, getAppContext().get()));
+        if (portNames.isNotEmpty())
+            DBG("******************************* " + portNames);
 
-    } catch (const std::exception& e) { // reference to the base of a polymorphic object
-        DBG(e.what());
+        auto stringArray = StringArray::fromTokens(portNames, "\n", "");
+
+        int i = 0;
+        for (auto port : stringArray)
+            serialPortPaths.set(String(i), port);
+
+        return serialPortPaths;
+
+    } catch (const std::exception& e) {
+        DBG("EXCEPTION IN SerialPort::getSerialPortPaths()" + String(e.what()));
     }
 
-    return SerialPortPaths;
+    return serialPortPaths;
 }
 
 void SerialPort::close()
