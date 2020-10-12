@@ -26,7 +26,7 @@
 //#undef JNI_CLASS_MEMBERS
 
 #define JNI_CLASS_MEMBERS(METHOD, STATICMETHOD, FIELD, STATICFIELD, CALLBACK) \
-    METHOD (refresh, "refresh", "(Landroid/content/Context;)Ljava/lang/String;")
+    METHOD (getSerialPortPaths, "getSerialPortPaths", "(Landroid/content/Context;)Ljava/lang/String;")
 DECLARE_JNI_CLASS_WITH_MIN_SDK (UsbSerialHelper, "com/hoho/android/usbserial/UsbSerialHelper", 23)
 #undef JNI_CLASS_MEMBERS
 
@@ -37,17 +37,26 @@ StringPairArray SerialPort::getSerialPortPaths()
     try
     {
         auto env = getEnv();
-        jobject usbSerialHelper = env->AllocObject(UsbSerialHelper);
+        jmethodID constructorMethodId = env->GetMethodID(UsbSerialHelper, "<init>", "(Landroid/content/Context;)V");
+        if (constructorMethodId == nullptr) {
+            DBG("******************************* NULL METHOD ID");
+            return serialPortPaths;
+        }
 
-        auto portNames = juce::juceString ((jstring) env->CallObjectMethod (usbSerialHelper, UsbSerialHelper.refresh, getAppContext().get()));
-        if (portNames.isNotEmpty())
-            DBG("******************************* " + portNames);
+        //objects need to be saved as GlobalRef's if they are to be passed between JNI calls.
+        //not sure what the impact of this has overall though -- is it like creating a ton of different global objects?
+        GlobalRef context(getAppContext());
+        jobject usbSerialHelper = env->NewObject(UsbSerialHelper, constructorMethodId, context.get());
+
+        auto portNames = juce::juceString ((jstring) env->CallObjectMethod (usbSerialHelper, UsbSerialHelper.getSerialPortPaths, context.get()));
 
         auto stringArray = StringArray::fromTokens(portNames, "\n", "");
 
         int i = 0;
-        for (auto port : stringArray)
-            serialPortPaths.set(String(i), port);
+        for (auto port : stringArray) {
+            DBG("******************************* serial port " + port);
+            serialPortPaths.set(String(i++), port);
+        }
 
         return serialPortPaths;
 
@@ -70,6 +79,8 @@ bool SerialPort::exists()
 
 bool SerialPort::open(const String & newPortPath)
 {
+    DBG("************************ SerialPort::open()");
+    portPath = newPortPath;
     return false;
 }
 
