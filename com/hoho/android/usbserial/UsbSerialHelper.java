@@ -85,11 +85,10 @@ public class UsbSerialHelper /*extends Fragment*/ implements SerialInputOutputMa
 
                 String allPorts = "";
                 for (UsbSerialPort s : ports)
-                    allPorts += "serialport " + s.getPortNumber() + "\n";
+                    allPorts += "serialport " + s.getPortNumber() + "-";
 
                 DBG(allPorts, context);
                 return allPorts;
-
             }
         } catch (Exception e) {
             DBG("****************************** exception!!! ", context);
@@ -106,8 +105,7 @@ public class UsbSerialHelper /*extends Fragment*/ implements SerialInputOutputMa
             public void onReceive(Context context, Intent intent) {
                 if (intent.getAction().equals(INTENT_ACTION_GRANT_USB)) {
                     usbPermission = intent.getBooleanExtra(UsbManager.EXTRA_PERMISSION_GRANTED, false) ? UsbPermission.Granted : UsbPermission.Denied;
-                    //VB: we'd need to context here
-//                    connect();
+                    connect();
                 }
             }
         };
@@ -207,7 +205,7 @@ public class UsbSerialHelper /*extends Fragment*/ implements SerialInputOutputMa
     /*
      * Serial + UI
      */
-    private void connect(Context context) {
+    private void connect() {
         UsbDevice device = null;
         UsbManager usbManager = (UsbManager) context.getSystemService (USB_SERVICE);
 //        UsbManager usbManager = (UsbManager) getActivity().getSystemService(Context.USB_SERVICE);

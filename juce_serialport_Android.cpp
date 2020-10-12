@@ -50,16 +50,16 @@ StringPairArray SerialPort::getSerialPortPaths()
 
         auto portNames = juce::juceString ((jstring) env->CallObjectMethod (usbSerialHelper, UsbSerialHelper.getSerialPortPaths, context.get()));
 
-        auto stringArray = StringArray::fromTokens(portNames, "\n", "");
-
-        int i = 0;
-        for (auto port : stringArray) {
-            DBG("******************************* serial port " + port);
-            serialPortPaths.set(String(i++), port);
+        auto stringArray = StringArray::fromTokens(portNames, "-", "");
+        auto numPorts = stringArray.size();
+        if (numPorts > 0)
+        {
+            DBG("******************************* portNames = " + portNames + "; numPorts = " + String(numPorts));
+            //unclear why, but there's an empty token at the end of the stringArray, so skipping that one
+            for (int i = 0; i < numPorts - 1; ++i)
+                serialPortPaths.set(String(i++), stringArray[i]);
         }
-
         return serialPortPaths;
-
     } catch (const std::exception& e) {
         DBG("EXCEPTION IN SerialPort::getSerialPortPaths()" + String(e.what()));
     }
