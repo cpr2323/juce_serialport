@@ -1,6 +1,6 @@
 package com.hoho.android.usbserial;
 
-import android.app.PendingIntent;
+
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
@@ -54,7 +54,7 @@ public class UsbSerialHelper /*extends Fragment*/ implements SerialInputOutputMa
     private static final int WRITE_WAIT_MILLIS = 2000;
     private static final int READ_WAIT_MILLIS = 2000;
 
-    private int deviceId, portNum, baudRate;
+//    private int deviceId, portNum, baudRate;
     private boolean withIoManager;
 
     private BroadcastReceiver broadcastReceiver;
@@ -66,6 +66,9 @@ public class UsbSerialHelper /*extends Fragment*/ implements SerialInputOutputMa
     private UsbSerialPort usbSerialPort;
     private UsbPermission usbPermission = UsbPermission.Unknown;
     private boolean connected = false;
+
+    //TODO VB: DOES THIS MAKE SENSE?
+    private int baudRate = 19200;
 
     Context context;
 
@@ -105,7 +108,7 @@ public class UsbSerialHelper /*extends Fragment*/ implements SerialInputOutputMa
             public void onReceive(Context context, Intent intent) {
                 if (intent.getAction().equals(INTENT_ACTION_GRANT_USB)) {
                     usbPermission = intent.getBooleanExtra(UsbManager.EXTRA_PERMISSION_GRANTED, false) ? UsbPermission.Granted : UsbPermission.Denied;
-                    connect();
+//                    connect();
                 }
             }
         };
@@ -125,7 +128,7 @@ public class UsbSerialHelper /*extends Fragment*/ implements SerialInputOutputMa
 //        baudRate = getArguments().getInt("baud");
 //        withIoManager = getArguments().getBoolean("withIoManager");
 //    }
-//
+
 //    @Override
 //    public void onResume() {
 //        super.onResume();
@@ -205,17 +208,18 @@ public class UsbSerialHelper /*extends Fragment*/ implements SerialInputOutputMa
     /*
      * Serial + UI
      */
-    private void connect() {
+    private boolean connect(int portNum) {
         UsbDevice device = null;
         UsbManager usbManager = (UsbManager) context.getSystemService (USB_SERVICE);
 //        UsbManager usbManager = (UsbManager) getActivity().getSystemService(Context.USB_SERVICE);
         for (UsbDevice v : usbManager.getDeviceList().values())
-            if (v.getDeviceId() == deviceId)
+//            if (v.getDeviceId() == deviceId)
+            //TODO VB: IS THERE PRECISELY ONE DEVICE??
                 device = v;
 
         if (device == null) {
             status("connection failed: device not found");
-            return;
+            return false;
         }
 
         CdcAcmSerialDriver driver = new CdcAcmSerialDriver(device);
@@ -229,7 +233,7 @@ public class UsbSerialHelper /*extends Fragment*/ implements SerialInputOutputMa
 //        }
         if (driver.getPorts().size() < portNum) {
             status("connection failed: not enough ports at device");
-            return;
+            return false;
         }
 
         usbSerialPort = driver.getPorts().get(portNum);
@@ -239,7 +243,7 @@ public class UsbSerialHelper /*extends Fragment*/ implements SerialInputOutputMa
 //            usbPermission = UsbPermission.Requested;
 //            PendingIntent usbPermissionIntent = PendingIntent.getBroadcast(getActivity(), 0, new Intent(INTENT_ACTION_GRANT_USB), 0);
 //            usbManager.requestPermission(driver.getDevice(), usbPermissionIntent);
-            return;
+            return false;
         }
 
         if (usbConnection == null) {
@@ -247,7 +251,7 @@ public class UsbSerialHelper /*extends Fragment*/ implements SerialInputOutputMa
                 status("connection failed: permission denied");
             else
                 status("connection failed: open failed");
-            return;
+            return false;
         }
 
         try {
@@ -261,9 +265,12 @@ public class UsbSerialHelper /*extends Fragment*/ implements SerialInputOutputMa
             connected = true;
 //            controlLines.start();
         } catch (Exception e) {
+            DBG("connection failed: " + e.getMessage(), context);
             status("connection failed: " + e.getMessage());
             disconnect();
         }
+
+        return true;
     }
 
     private void disconnect() {

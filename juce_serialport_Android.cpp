@@ -26,14 +26,14 @@
 //#undef JNI_CLASS_MEMBERS
 
 #define JNI_CLASS_MEMBERS(METHOD, STATICMETHOD, FIELD, STATICFIELD, CALLBACK) \
-    METHOD (getSerialPortPaths, "getSerialPortPaths", "(Landroid/content/Context;)Ljava/lang/String;")
+    METHOD (getSerialPortPaths, "getSerialPortPaths", "(Landroid/content/Context;)Ljava/lang/String;") \
+    METHOD (connect, "connect", "(I)Z")
 DECLARE_JNI_CLASS_WITH_MIN_SDK (UsbSerialHelper, "com/hoho/android/usbserial/UsbSerialHelper", 23)
 #undef JNI_CLASS_MEMBERS
 
 StringPairArray SerialPort::getSerialPortPaths()
 {
     StringPairArray serialPortPaths;
-
     try
     {
         auto env = getEnv();
@@ -57,7 +57,7 @@ StringPairArray SerialPort::getSerialPortPaths()
             DBG("******************************* portNames = " + portNames + "; numPorts = " + String(numPorts));
             //unclear why, but there's an empty token at the end of the stringArray, so skipping that one
             for (int i = 0; i < numPorts - 1; ++i)
-                serialPortPaths.set(String(i++), stringArray[i]);
+                serialPortPaths.set(String(i), stringArray[i]);
         }
         return serialPortPaths;
     } catch (const std::exception& e) {
@@ -81,7 +81,21 @@ bool SerialPort::open(const String & newPortPath)
 {
     DBG("************************ SerialPort::open()");
     portPath = newPortPath;
-    return false;
+
+    bool result = false;
+    try
+    {
+        GlobalRef context(getAppContext());
+        auto env = getEnv();
+        jmethodID constructorMethodId = env->GetMethodID(UsbSerialHelper, "<init>", "(Landroid/content/Context;)V");
+        jobject usbSerialHelper = env->NewObject(UsbSerialHelper, constructorMethodId, context.get());
+        bool result = (jboolean) env->CallBooleanMethod (usbSerialHelper, UsbSerialHelper.connect, newPortPath.getIntValue());
+    } catch (const std::exception& e) {
+        DBG("********************* EXCEPTION IN SerialPort::open()" + String(e.what()));
+    }
+
+    DBG("********************* SerialPort::open() returns " + result);
+    return result;
 }
 
 void SerialPort::cancel ()
