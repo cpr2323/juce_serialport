@@ -9,6 +9,10 @@
 
 #if JUCE_MAC
 
+using namespace juce;
+
+#define Point DUMMY_Point
+#define Component DUMMY_Component
 #include <stdio.h>
 #include <sys/ioctl.h>
 #include <fcntl.h>
@@ -18,7 +22,8 @@
 #include <IOKit/IOBSD.h>
 #include <IOKit/storage/IOCDTypes.h>
 #include <IOKit/serial/ioss.h>
-
+#undef Point
+#undef Component
 #include "juce_serialport.h"
 
 StringPairArray SerialPort::getSerialPortPaths()
@@ -120,6 +125,10 @@ bool SerialPort::open(const String & portPath)
     }
 	return true;
 }
+void SerialPort::cancel ()
+{
+}
+
 bool SerialPort::setConfig(const SerialPortConfig & config)
 {
 	if(-1==portDescriptor)return false;
@@ -132,7 +141,8 @@ bool SerialPort::setConfig(const SerialPortConfig & config)
 	options.c_cflag |= CREAD; //enable reciever (daft)
 	options.c_cflag |= CLOCAL;//don't monitor modem control lines
 	//baud and bits
-	cfsetspeed(&options, config.bps);
+    cfsetspeed(&options, 9600); //Just set 9600 to get this to pass,
+                                //we'll set the actual baud rate later
 	switch(config.databits)
 	{
 		case 5: options.c_cflag |= CS5; break;
@@ -187,6 +197,13 @@ bool SerialPort::setConfig(const SerialPortConfig & config)
         DBG("SerialPort::setConfig : can't set port settings");
         return false;
     }
+    
+    int new_baud = static_cast<int> (config.bps);
+    if (ioctl (portDescriptor, _IOW('T', 2, speed_t), &new_baud, 1) == -1) {
+        DBG("SerialPort::setConfig : can't set baud rate");
+        return false;
+    }
+    
 	return true;
 }
 bool SerialPort::getConfig(SerialPortConfig & config)
@@ -227,13 +244,16 @@ bool SerialPort::getConfig(SerialPortConfig & config)
 /////////////////////////////////
 // SerialPortInputStream
 /////////////////////////////////
+void SerialPortInputStream::cancel ()
+{
+}
+
 void SerialPortInputStream::run()
 {
 	while(port && (port->portDescriptor!=-1) && !threadShouldExit())
 	{
 		unsigned char c;
-		int bytesread=0;
-		bytesread = ::read(port->portDescriptor, &c, 1);
+		const auto bytesread = ::read(port->portDescriptor, &c, 1);
 		if(bytesread==1)
 		{
 			const ScopedLock l(bufferCriticalSection);
@@ -267,6 +287,10 @@ int SerialPortInputStream::read(void *destBuffer, int maxBytesToRead)
 /////////////////////////////////
 // SerialPortOutputStream
 /////////////////////////////////
+void SerialPortOutputStream::cancel ()
+{
+}
+
 void SerialPortOutputStream::run()
 {
 	unsigned char tempbuffer[writeBufferSize];
@@ -276,12 +300,11 @@ void SerialPortOutputStream::run()
 			triggerWrite.wait(100);
 		if(bufferedbytes)
 		{
-			int byteswritten=0;
 			bufferCriticalSection.enter();
 			int bytestowrite=bufferedbytes>writeBufferSize?writeBufferSize:bufferedbytes;
 			memcpy(tempbuffer, buffer.getData(), bytestowrite);
 			bufferCriticalSection.exit();
-			byteswritten = ::write(port->portDescriptor, tempbuffer, bytestowrite);
+			const auto byteswritten = ::write(port->portDescriptor, tempbuffer, bytestowrite);
 			if(byteswritten>0)
 			{
 				const ScopedLock l(bufferCriticalSection);

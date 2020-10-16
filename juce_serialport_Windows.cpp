@@ -9,6 +9,8 @@
 
 #if JUCE_WINDOWS
 
+using namespace juce;
+
 #include <windows.h>
 #include <stdio.h>
 
