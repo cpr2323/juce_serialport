@@ -1,6 +1,7 @@
 package com.hoho.android.usbserial;
 
 
+import android.app.PendingIntent;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
@@ -240,10 +241,11 @@ public class UsbSerialHelper /*extends Fragment*/ implements SerialInputOutputMa
 
         UsbDeviceConnection usbConnection = usbManager.openDevice(driver.getDevice());
         if (usbConnection == null && usbPermission == UsbPermission.Unknown && ! usbManager.hasPermission(driver.getDevice())) {
+            //NOW HERE: GET THE ACTIVITY FROM C++
 //            usbPermission = UsbPermission.Requested;
 //            PendingIntent usbPermissionIntent = PendingIntent.getBroadcast(getActivity(), 0, new Intent(INTENT_ACTION_GRANT_USB), 0);
 //            usbManager.requestPermission(driver.getDevice(), usbPermissionIntent);
-            return false;
+//            return false;
         }
 
         if (usbConnection == null) {
