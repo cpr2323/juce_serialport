@@ -37,7 +37,7 @@ StringPairArray SerialPort::getSerialPortPaths()
     try
     {
         auto env = getEnv();
-        jmethodID constructorMethodId = env->GetMethodID(UsbSerialHelper, "<init>", "(Landroid/content/Context;)V");
+        jmethodID constructorMethodId = env->GetMethodID(UsbSerialHelper, "<init>", "(Landroid/content/Context;Landroid/app/Activity;)V");
         if (constructorMethodId == nullptr) {
             DBG("******************************* NULL METHOD ID");
             return serialPortPaths;
@@ -46,7 +46,8 @@ StringPairArray SerialPort::getSerialPortPaths()
         //objects need to be saved as GlobalRef's if they are to be passed between JNI calls.
         //not sure what the impact of this has overall though -- is it like creating a ton of different global objects?
         GlobalRef context(getAppContext());
-        jobject usbSerialHelper = env->NewObject(UsbSerialHelper, constructorMethodId, context.get());
+        GlobalRef mainActivity(getMainActivity());
+        jobject usbSerialHelper = env->NewObject(UsbSerialHelper, constructorMethodId, context.get(), mainActivity.get());
 
         auto portNames = juce::juceString ((jstring) env->CallObjectMethod (usbSerialHelper, UsbSerialHelper.getSerialPortPaths, context.get()));
 
@@ -87,8 +88,10 @@ bool SerialPort::open(const String & newPortPath)
     {
         GlobalRef context(getAppContext());
         auto env = getEnv();
-        jmethodID constructorMethodId = env->GetMethodID(UsbSerialHelper, "<init>", "(Landroid/content/Context;)V");
-        jobject usbSerialHelper = env->NewObject(UsbSerialHelper, constructorMethodId, context.get());
+        GlobalRef mainActivity(getMainActivity());
+
+        jmethodID constructorMethodId = env->GetMethodID(UsbSerialHelper, "<init>", "(Landroid/content/Context;Landroid/app/Activity;)V");
+        jobject usbSerialHelper = env->NewObject(UsbSerialHelper, constructorMethodId, context.get(), mainActivity.get());
         bool result = (jboolean) env->CallBooleanMethod (usbSerialHelper, UsbSerialHelper.connect, newPortPath.getIntValue());
     } catch (const std::exception& e) {
         DBG("********************* EXCEPTION IN SerialPort::open()" + String(e.what()));

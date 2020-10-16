@@ -1,6 +1,7 @@
 package com.hoho.android.usbserial;
 
 
+import android.app.Activity;
 import android.app.PendingIntent;
 import android.content.BroadcastReceiver;
 import android.content.Context;
@@ -72,6 +73,7 @@ public class UsbSerialHelper /*extends Fragment*/ implements SerialInputOutputMa
     private int baudRate = 19200;
 
     Context context;
+    Activity mainActivity;
 
     public void DBG(String text, Context context) {
         Toast.makeText(context, text, Toast.LENGTH_SHORT).show();
@@ -102,8 +104,9 @@ public class UsbSerialHelper /*extends Fragment*/ implements SerialInputOutputMa
         return "";
     }
 
-    public UsbSerialHelper(Context contextIn) {
+    public UsbSerialHelper(Context contextIn, Activity mainActivityIn) {
         context = contextIn;
+        mainActivity = mainActivityIn;
         broadcastReceiver = new BroadcastReceiver() {
             @Override
             public void onReceive(Context context, Intent intent) {
@@ -242,10 +245,10 @@ public class UsbSerialHelper /*extends Fragment*/ implements SerialInputOutputMa
         UsbDeviceConnection usbConnection = usbManager.openDevice(driver.getDevice());
         if (usbConnection == null && usbPermission == UsbPermission.Unknown && ! usbManager.hasPermission(driver.getDevice())) {
             //NOW HERE: GET THE ACTIVITY FROM C++
-//            usbPermission = UsbPermission.Requested;
-//            PendingIntent usbPermissionIntent = PendingIntent.getBroadcast(getActivity(), 0, new Intent(INTENT_ACTION_GRANT_USB), 0);
-//            usbManager.requestPermission(driver.getDevice(), usbPermissionIntent);
-//            return false;
+            usbPermission = UsbPermission.Requested;
+            PendingIntent usbPermissionIntent = PendingIntent.getBroadcast(mainActivity, 0, new Intent(INTENT_ACTION_GRANT_USB), 0);
+            usbManager.requestPermission(driver.getDevice(), usbPermissionIntent);
+            return false;
         }
 
         if (usbConnection == null) {
@@ -263,7 +266,7 @@ public class UsbSerialHelper /*extends Fragment*/ implements SerialInputOutputMa
                 usbIoManager = new SerialInputOutputManager(usbSerialPort, this);
                 Executors.newSingleThreadExecutor().submit(usbIoManager);
             }
-            status("connected");
+//            DBG("connected", context);
             connected = true;
 //            controlLines.start();
         } catch (Exception e) {
