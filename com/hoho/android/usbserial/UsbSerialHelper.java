@@ -69,8 +69,8 @@ public class UsbSerialHelper /*extends Fragment*/ implements SerialInputOutputMa
     private UsbPermission usbPermission = UsbPermission.Unknown;
     private boolean connected = false;
 
-    //TODO VB: DOES THIS MAKE SENSE?
-    private int baudRate = 19200;
+    //This value is taken from ArtiCommSerialPort::internalOpen()
+    private int baudRate = 115200;
 
     Context context;
     Activity mainActivity;
@@ -212,14 +212,13 @@ public class UsbSerialHelper /*extends Fragment*/ implements SerialInputOutputMa
     /*
      * Serial + UI
      */
-    private boolean connect(int portNum) {
+    public boolean connect(int portNum) {
         UsbDevice device = null;
-        UsbManager usbManager = (UsbManager) context.getSystemService (USB_SERVICE);
-//        UsbManager usbManager = (UsbManager) getActivity().getSystemService(Context.USB_SERVICE);
+        UsbManager usbManager = (UsbManager) context.getSystemService(USB_SERVICE);
         for (UsbDevice v : usbManager.getDeviceList().values())
 //            if (v.getDeviceId() == deviceId)
             //TODO VB: IS THERE PRECISELY ONE DEVICE??
-                device = v;
+            device = v;
 
         if (device == null) {
             status("connection failed: device not found");
@@ -227,14 +226,6 @@ public class UsbSerialHelper /*extends Fragment*/ implements SerialInputOutputMa
         }
 
         CdcAcmSerialDriver driver = new CdcAcmSerialDriver(device);
-//        UsbSerialDriver driver = UsbSerialProber.getDefaultProber().probeDevice(device);
-//        if (driver == null) {
-//            driver = CustomProber.getCustomProber().probeDevice(device);
-//            if (driver == null) {
-//                status("connection failed: no driver for device");
-//                return;
-//            }
-//        }
         if (driver.getPorts().size() < portNum) {
             status("connection failed: not enough ports at device");
             return false;
@@ -243,8 +234,7 @@ public class UsbSerialHelper /*extends Fragment*/ implements SerialInputOutputMa
         usbSerialPort = driver.getPorts().get(portNum);
 
         UsbDeviceConnection usbConnection = usbManager.openDevice(driver.getDevice());
-        if (usbConnection == null && usbPermission == UsbPermission.Unknown && ! usbManager.hasPermission(driver.getDevice())) {
-            //NOW HERE: GET THE ACTIVITY FROM C++
+        if (usbConnection == null && usbPermission == UsbPermission.Unknown && !usbManager.hasPermission(driver.getDevice())) {
             usbPermission = UsbPermission.Requested;
             PendingIntent usbPermissionIntent = PendingIntent.getBroadcast(mainActivity, 0, new Intent(INTENT_ACTION_GRANT_USB), 0);
             usbManager.requestPermission(driver.getDevice(), usbPermissionIntent);
@@ -262,17 +252,17 @@ public class UsbSerialHelper /*extends Fragment*/ implements SerialInputOutputMa
         try {
             usbSerialPort.open(usbConnection);
             usbSerialPort.setParameters(baudRate, 8, UsbSerialPort.STOPBITS_1, UsbSerialPort.PARITY_NONE);
-            if(withIoManager) {
+            if (withIoManager) {
                 usbIoManager = new SerialInputOutputManager(usbSerialPort, this);
                 Executors.newSingleThreadExecutor().submit(usbIoManager);
             }
-//            DBG("connected", context);
+
             connected = true;
-//            controlLines.start();
         } catch (Exception e) {
             DBG("connection failed: " + e.getMessage(), context);
             status("connection failed: " + e.getMessage());
             disconnect();
+            return false;
         }
 
         return true;

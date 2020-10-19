@@ -75,7 +75,7 @@ void SerialPort::close()
 
 bool SerialPort::exists()
 {
-    return false;
+    return (portDescriptor != -1);
 }
 
 bool SerialPort::open(const String & newPortPath)
@@ -92,12 +92,16 @@ bool SerialPort::open(const String & newPortPath)
 
         jmethodID constructorMethodId = env->GetMethodID(UsbSerialHelper, "<init>", "(Landroid/content/Context;Landroid/app/Activity;)V");
         jobject usbSerialHelper = env->NewObject(UsbSerialHelper, constructorMethodId, context.get(), mainActivity.get());
-        bool result = (jboolean) env->CallBooleanMethod (usbSerialHelper, UsbSerialHelper.connect, newPortPath.getIntValue());
+        portHandle = &usbSerialHelper;
+        result = (jboolean) env->CallBooleanMethod (usbSerialHelper, UsbSerialHelper.connect, newPortPath.getIntValue());
     } catch (const std::exception& e) {
         DBG("********************* EXCEPTION IN SerialPort::open()" + String(e.what()));
     }
 
-    DBG("********************* SerialPort::open() returns " + result);
+    if (result)
+        DBG("********************* SerialPort::open() succeded");
+    else
+        DBG("********************* SerialPort::open() FAILED");
     return result;
 }
 
@@ -107,12 +111,29 @@ void SerialPort::cancel ()
 }
 bool SerialPort::setConfig(const SerialPortConfig & config)
 {
-    return false;
+    return config.bps == 115200
+        && config.databits == 8
+        && config.stopbits == SerialPortConfig::STOPBITS_1
+        && config.parity == SerialPortConfig::SERIALPORT_PARITY_NONE
+        && config.flowcontrol == SerialPortConfig::FLOWCONTROL_NONE;
 }
 
 bool SerialPort::getConfig(SerialPortConfig & config)
 {
-    return false;
+    if (! portHandle)
+        return false;
+
+    //this is what is hardcoded in UsbSerialHelper.java
+    //public void setParameters(int baudRate, int dataBits, int stopBits, int parity) throws IOException;
+    //usbSerialPort.setParameters(baudRate, 8, UsbSerialPort.STOPBITS_1, UsbSerialPort.PARITY_NONE);
+
+    config.bps = 115200;
+    config.databits = 8;
+    config.stopbits = SerialPortConfig::STOPBITS_1;
+    config.parity = SerialPortConfig::SERIALPORT_PARITY_NONE;
+    config.flowcontrol = SerialPortConfig::FLOWCONTROL_NONE;
+
+    return true;
 }
 
 /////////////////////////////////
@@ -128,7 +149,7 @@ void SerialPortInputStream::cancel ()
 
 int SerialPortInputStream::read(void *destBuffer, int maxBytesToRead)
 {
-    if (!port || port->portHandle == 0)
+    if (! port || port->portHandle == 0)
         return -1;
 
     const ScopedLock l (bufferCriticalSection);
