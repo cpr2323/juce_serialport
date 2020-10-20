@@ -71,7 +71,6 @@ a typical serialport scenario may be:
 
 #include <stdint.h>
 
-
 class JUCE_API SerialPortConfig
 {
 public:
@@ -129,6 +128,10 @@ private:
 	int portDescriptor;
     bool canceled;
 	juce::String portPath;
+
+#if JUCE_ANDROID
+    jobject usbSerialHelper;
+#endif
 };
 
 class JUCE_API SerialPortInputStream : public juce::InputStream, public juce::ChangeBroadcaster, private juce::Thread

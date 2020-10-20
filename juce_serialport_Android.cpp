@@ -12,21 +12,31 @@
 //#define JNI_CLASS_MEMBERS(METHOD, STATICMETHOD, FIELD, STATICFIELD, CALLBACK) \
 //    DECLARE_JNI_CLASS (UsbDevice, "android/hardware/usb/UsbDevice")
 //#undef JNI_CLASS_MEMBERS
-//
+
 ////JNI to call juce stuff
 //#define JNI_CLASS_MEMBERS(METHOD, STATICMETHOD, FIELD, STATICFIELD, CALLBACK) \
 //    STATICMETHOD (getAndroidBluetoothManager, "getAndroidBluetoothManager", "(Landroid/content/Context;)Lcom/rmsl/juce/JuceMidiSupport$BluetoothManager;")
 //    DECLARE_JNI_CLASS_WITH_MIN_SDK (AndroidJuceMidiSupport, "com/rmsl/juce/JuceMidiSupport", 23)
 //#undef JNI_CLASS_MEMBERS
 
-//#define JNI_CLASS_MEMBERS(METHOD, STATICMETHOD, FIELD, STATICFIELD, CALLBACK) \
-////    METHOD (refresh, "refresh", "(Landroid/content/Context;)[Ljava/lang/String;")
-//      METHOD (refresh, "refresh", "(Landroid/content/Context;)Ljava/lang/String;")
-//    DECLARE_JNI_CLASS_WITH_MIN_SDK (UsbSerialHelper, "com/hoho/android/usbserial/UsbSerialHelper", 23)
-//#undef JNI_CLASS_MEMBERS
+////JNI type conversions
+//Z	                        boolean
+//B	                        byte
+//C	                        char
+//S	                        short
+//I	                        int
+//J	                        long
+//F	                        float
+//D	                        double
+//Lfully-qualified-class;	fully-qualified-class
+//[type                   type[]
+
+//when calling those methods, you have to use callXXXXMethod with XXXX being the return type
+//e.g., for getSerialPortPaths which returns a string, you call it with CallObjectMethod
 
 #define JNI_CLASS_MEMBERS(METHOD, STATICMETHOD, FIELD, STATICFIELD, CALLBACK) \
     METHOD (getSerialPortPaths, "getSerialPortPaths", "(Landroid/content/Context;)Ljava/lang/String;") \
+    METHOD (send, "send", "()V") \
     METHOD (connect, "connect", "(I)Z")
 DECLARE_JNI_CLASS_WITH_MIN_SDK (UsbSerialHelper, "com/hoho/android/usbserial/UsbSerialHelper", 23)
 #undef JNI_CLASS_MEMBERS
@@ -38,10 +48,6 @@ StringPairArray SerialPort::getSerialPortPaths()
     {
         auto env = getEnv();
         jmethodID constructorMethodId = env->GetMethodID(UsbSerialHelper, "<init>", "(Landroid/content/Context;Landroid/app/Activity;)V");
-        if (constructorMethodId == nullptr) {
-            DBG("******************************* NULL METHOD ID");
-            return serialPortPaths;
-        }
 
         //objects need to be saved as GlobalRef's if they are to be passed between JNI calls.
         //not sure what the impact of this has overall though -- is it like creating a ton of different global objects?
@@ -92,7 +98,9 @@ bool SerialPort::open(const String & newPortPath)
         GlobalRef mainActivity(getMainActivity());
 
         jmethodID constructorMethodId = env->GetMethodID(UsbSerialHelper, "<init>", "(Landroid/content/Context;Landroid/app/Activity;)V");
-        jobject usbSerialHelper = env->NewObject(UsbSerialHelper, constructorMethodId, context.get(), mainActivity.get());
+        jobject temp = env->NewObject(UsbSerialHelper, constructorMethodId, context.get(), mainActivity.get());
+        usbSerialHelper = (jobject) env->NewGlobalRef(temp);
+
         portHandle = &usbSerialHelper;
         result = (jboolean) env->CallBooleanMethod (usbSerialHelper, UsbSerialHelper.connect, newPortPath.getIntValue());
     } catch (const std::exception& e) {
@@ -176,6 +184,8 @@ int SerialPortInputStream::read(void *destBuffer, int maxBytesToRead)
     if (! port || port->portHandle == 0)
         return -1;
 
+    //taken from OSX code
+    /*
     const ScopedLock l (bufferCriticalSection);
 
     if (maxBytesToRead > bufferedbytes)
@@ -185,6 +195,9 @@ int SerialPortInputStream::read(void *destBuffer, int maxBytesToRead)
     buffer.removeSection (0, maxBytesToRead);
     bufferedbytes -= maxBytesToRead;
     return maxBytesToRead;
+     */
+
+    return 0;
 }
 
 /////////////////////////////////
@@ -232,6 +245,9 @@ bool SerialPortOutputStream::write(const void *dataToWrite, size_t howManyBytes)
 {
     if (! port || port->portHandle == 0)
         return false;
+
+    auto env = getEnv();
+    env->CallVoidMethod (port->usbSerialHelper, UsbSerialHelper.send);
 
     //this code is taken from the osx version
 //    bufferCriticalSection.enter();

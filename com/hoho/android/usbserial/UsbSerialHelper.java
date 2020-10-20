@@ -17,9 +17,7 @@ import android.widget.Toast;
 
 import com.artiphon.orba.BuildConfig;
 import com.hoho.android.usbserial.driver.CdcAcmSerialDriver;
-import com.hoho.android.usbserial.driver.UsbSerialDriver;
 import com.hoho.android.usbserial.driver.UsbSerialPort;
-import com.hoho.android.usbserial.driver.UsbSerialProber;
 import com.hoho.android.usbserial.util.HexDump;
 import com.hoho.android.usbserial.util.SerialInputOutputManager;
 
@@ -183,13 +181,14 @@ public class UsbSerialHelper implements SerialInputOutputManager.Listener {
         usbSerialPort = null;
     }
 
-    public void send (String str) {
+    public void send () {
         if (! connected) {
             DBG("not connected", context);
             return;
         }
 
         try {
+            String str = "0";
             byte[] data = (str + '\n').getBytes();
             usbSerialPort.write(data, WRITE_WAIT_MILLIS);
         } catch (Exception e) {
