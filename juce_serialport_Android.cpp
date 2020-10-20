@@ -70,7 +70,7 @@ StringPairArray SerialPort::getSerialPortPaths()
 
 void SerialPort::close()
 {
-
+    DBG("SerialPort::close ()");
 }
 
 bool SerialPort::exists()
@@ -82,6 +82,7 @@ bool SerialPort::open(const String & newPortPath)
 {
     DBG("************************ SerialPort::open()");
     portPath = newPortPath;
+    portDescriptor = newPortPath.getIntValue();
 
     bool result = false;
     try
@@ -107,7 +108,7 @@ bool SerialPort::open(const String & newPortPath)
 
 void SerialPort::cancel ()
 {
-
+    DBG("SerialPort::cancel ()");
 }
 bool SerialPort::setConfig(const SerialPortConfig & config)
 {
@@ -141,10 +142,33 @@ bool SerialPort::getConfig(SerialPortConfig & config)
 /////////////////////////////////
 void SerialPortInputStream::run()
 {
+    DBG("SerialPortInputStream::run()");
+
+    //this code is taken from the osx version
+//    while (port && port->portDescriptor != -1 && ! threadShouldExit())
+//    {
+//        unsigned char c;
+//        const auto bytesread = read(&c, 1);
+//        if (bytesread == 1)
+//        {
+//            const ScopedLock l(bufferCriticalSection);
+//            buffer.ensureSize(bufferedbytes+1);
+//            buffer[bufferedbytes] = c;
+//            bufferedbytes++;
+//            if (notify==NOTIFY_ALWAYS || (notify == NOTIFY_ON_CHAR && c == notifyChar))
+//                sendChangeMessage();
+//        }
+//        else if (bytesread == -1)
+//        {
+//            port->close ();
+//            break;
+//        }
+//    }
 }
 
 void SerialPortInputStream::cancel ()
 {
+    DBG("SerialPortInputStream::cancel()");
 }
 
 int SerialPortInputStream::read(void *destBuffer, int maxBytesToRead)
@@ -153,7 +177,10 @@ int SerialPortInputStream::read(void *destBuffer, int maxBytesToRead)
         return -1;
 
     const ScopedLock l (bufferCriticalSection);
-    if (maxBytesToRead > bufferedbytes)maxBytesToRead = bufferedbytes;
+
+    if (maxBytesToRead > bufferedbytes)
+        maxBytesToRead = bufferedbytes;
+
     memcpy (destBuffer, buffer.getData (), maxBytesToRead);
     buffer.removeSection (0, maxBytesToRead);
     bufferedbytes -= maxBytesToRead;
@@ -165,11 +192,36 @@ int SerialPortInputStream::read(void *destBuffer, int maxBytesToRead)
 /////////////////////////////////
 void SerialPortOutputStream::run()
 {
+    DBG("SerialPortOutputStream::run()");
 
+    //this code is taken from the osx version
+//    unsigned char tempbuffer[writeBufferSize];
+//    while(port && port->portDescriptor != -1 && ! threadShouldExit())
+//    {
+//        if(! bufferedbytes)
+//            triggerWrite.wait(100);
+//
+//        if (bufferedbytes)
+//        {
+//            bufferCriticalSection.enter();
+//            int bytestowrite = bufferedbytes>writeBufferSize ? writeBufferSize : bufferedbytes;
+//            memcpy(tempbuffer, buffer.getData(), bytestowrite);
+//            bufferCriticalSection.exit();
+//            const auto byteswritten = write(tempbuffer, bytestowrite);
+//            if (byteswritten > 0)
+//            {
+//                const ScopedLock l(bufferCriticalSection);
+//                buffer.removeSection (0, byteswritten);
+//                bufferedbytes-=byteswritten;
+//            }
+//        }
+//    }
 }
 
 void SerialPortOutputStream::cancel ()
 {
+    DBG("SerialPortOutputStream::cancel()");
+
     if (! port || port->portHandle == 0)
         return;
 
@@ -181,12 +233,12 @@ bool SerialPortOutputStream::write(const void *dataToWrite, size_t howManyBytes)
     if (! port || port->portHandle == 0)
         return false;
 
-    bufferCriticalSection.enter();
-    buffer.append(dataToWrite, howManyBytes);
-    bufferedbytes += (int)howManyBytes;
-    bufferCriticalSection.exit();
-    triggerWrite.signal();
+    //this code is taken from the osx version
+//    bufferCriticalSection.enter();
+//    buffer.append(dataToWrite, howManyBytes);
+//    bufferedbytes += (int) howManyBytes;
+//    bufferCriticalSection.exit();
+//    triggerWrite.signal();
     return true;
 }
-
 #endif // JUCE_ANDROID
