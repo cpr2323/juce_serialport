@@ -36,12 +36,8 @@ public class UsbSerialHelper implements SerialInputOutputManager.Listener {
     private static final int WRITE_WAIT_MILLIS = 2000;
     private static final int READ_WAIT_MILLIS = 2000;
 
-//    private int deviceId, portNum, baudRate;
-    private boolean withIoManager;
-
     private BroadcastReceiver broadcastReceiver;
     private Handler mainLooper;
-    private TextView receiveText;
 
     private SerialInputOutputManager usbIoManager;
     private UsbSerialPort usbSerialPort;
@@ -60,7 +56,6 @@ public class UsbSerialHelper implements SerialInputOutputManager.Listener {
 
     String getSerialPortPaths(Context contextIn) {
         try {
-
             UsbManager usbManager = (UsbManager) context.getSystemService (USB_SERVICE);
 
             for (UsbDevice device : usbManager.getDeviceList().values()) {
@@ -116,9 +111,10 @@ public class UsbSerialHelper implements SerialInputOutputManager.Listener {
     public boolean connect(int portNum) {
         UsbDevice device = null;
         UsbManager usbManager = (UsbManager) context.getSystemService(USB_SERVICE);
+
+        //TODO: deal with the case where there`s more than 1 device
         for (UsbDevice v : usbManager.getDeviceList().values())
 //            if (v.getDeviceId() == deviceId)
-            //TODO VB: IS THERE PRECISELY ONE DEVICE??
             device = v;
 
         if (device == null) {
@@ -153,10 +149,9 @@ public class UsbSerialHelper implements SerialInputOutputManager.Listener {
         try {
             usbSerialPort.open(usbConnection);
             usbSerialPort.setParameters(baudRate, 8, UsbSerialPort.STOPBITS_1, UsbSerialPort.PARITY_NONE);
-            if (withIoManager) {
-                usbIoManager = new SerialInputOutputManager(usbSerialPort, this);
-                Executors.newSingleThreadExecutor().submit(usbIoManager);
-            }
+
+            usbIoManager = new SerialInputOutputManager(usbSerialPort, this);
+            Executors.newSingleThreadExecutor().submit(usbIoManager);
 
             connected = true;
         } catch (Exception e) {
@@ -220,6 +215,7 @@ public class UsbSerialHelper implements SerialInputOutputManager.Listener {
         spn.append("receive " + data.length + " bytes\n");
         if(data.length > 0)
             spn.append(HexDump.dumpHexString(data)+"\n");
-        receiveText.append(spn);
+
+        DBG(spn.toString(), context);
     }
 }
