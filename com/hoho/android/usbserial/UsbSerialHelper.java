@@ -3,7 +3,6 @@ package com.hoho.android.usbserial;
 
 import android.app.Activity;
 import android.app.PendingIntent;
-import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.hardware.usb.UsbDevice;
@@ -12,7 +11,6 @@ import android.hardware.usb.UsbManager;
 import android.os.Handler;
 import android.os.Looper;
 import android.text.SpannableStringBuilder;
-import android.widget.TextView;
 import android.widget.Toast;
 
 import com.artiphon.orba.BuildConfig;
@@ -36,7 +34,6 @@ public class UsbSerialHelper implements SerialInputOutputManager.Listener {
     private static final int WRITE_WAIT_MILLIS = 2000;
     private static final int READ_WAIT_MILLIS = 2000;
 
-    private BroadcastReceiver broadcastReceiver;
     private Handler mainLooper;
 
     private SerialInputOutputManager usbIoManager;
@@ -81,15 +78,6 @@ public class UsbSerialHelper implements SerialInputOutputManager.Listener {
     public UsbSerialHelper(Context contextIn, Activity mainActivityIn) {
         context = contextIn;
         mainActivity = mainActivityIn;
-        broadcastReceiver = new BroadcastReceiver() {
-            @Override
-            public void onReceive(Context context, Intent intent) {
-                if (intent.getAction().equals(INTENT_ACTION_GRANT_USB)) {
-                    usbPermission = intent.getBooleanExtra(UsbManager.EXTRA_PERMISSION_GRANTED, false) ? UsbPermission.Granted : UsbPermission.Denied;
-//                    connect();
-                }
-            }
-        };
         mainLooper = new Handler(Looper.getMainLooper());
     }
 
