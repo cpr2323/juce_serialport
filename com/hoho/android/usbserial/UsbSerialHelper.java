@@ -154,19 +154,20 @@ public class UsbSerialHelper implements SerialInputOutputManager.Listener {
         usbSerialPort = null;
     }
 
-    public void send () {
+    public boolean send (byte[] data) {
         if (! connected) {
             DBG("not connected", context);
-            return;
+            return false;
         }
 
         try {
-            String str = "0";
-            byte[] data = (str + '\n').getBytes();
             usbSerialPort.write(data, WRITE_WAIT_MILLIS);
         } catch (Exception e) {
             onRunError(e);
+            return false;
         }
+
+        return true;
     }
 
     @Override

@@ -36,7 +36,7 @@
 
 #define JNI_CLASS_MEMBERS(METHOD, STATICMETHOD, FIELD, STATICFIELD, CALLBACK) \
     METHOD (getSerialPortPaths, "getSerialPortPaths", "(Landroid/content/Context;)Ljava/lang/String;") \
-    METHOD (send, "send", "()V") \
+    METHOD (send, "send", "([B)Z") \
     METHOD (read, "read", "([B)I") \
     METHOD (connect, "connect", "(I)Z")
 DECLARE_JNI_CLASS_WITH_MIN_SDK (UsbSerialHelper, "com/hoho/android/usbserial/UsbSerialHelper", 23)
@@ -159,16 +159,13 @@ void SerialPortInputStream::run()
         const int bytesRead = (jint)  env->CallIntMethod (port->usbSerialHelper, UsbSerialHelper.read, result);
         if (bytesRead > 0)
         {
-            jboolean isCopy;
-            jbyte* jbuffer = env->GetByteArrayElements (result, &isCopy);
-
+            jbyte* jbuffer = env->GetByteArrayElements (result, nullptr);
             {
                 const ScopedLock lock(bufferCriticalSection);
                 buffer.ensureSize(bufferedbytes + bytesRead);
                 for (int i = 0; i < bytesRead; ++i)
                     buffer[bufferedbytes++] = jbuffer[i];
             }
-
             env->ReleaseByteArrayElements(result, jbuffer, 0);
 
             if (notify == NOTIFY_ALWAYS)
@@ -179,6 +176,8 @@ void SerialPortInputStream::run()
             port->close ();
             break;
         }
+
+        env->DeleteLocalRef(result);
     }
 }
 
@@ -209,30 +208,8 @@ int SerialPortInputStream::read(void *destBuffer, int maxBytesToRead)
 /////////////////////////////////
 void SerialPortOutputStream::run()
 {
+    //TODO if this is not used, can we stop it from running?
     DBG("SerialPortOutputStream::run()");
-
-    //this code is taken from the osx version
-//    unsigned char tempbuffer[writeBufferSize];
-//    while(port && port->portDescriptor != -1 && ! threadShouldExit())
-//    {
-//        if(! bufferedbytes)
-//            triggerWrite.wait(100);
-//
-//        if (bufferedbytes)
-//        {
-//            bufferCriticalSection.enter();
-//            int bytestowrite = bufferedbytes>writeBufferSize ? writeBufferSize : bufferedbytes;
-//            memcpy(tempbuffer, buffer.getData(), bytestowrite);
-//            bufferCriticalSection.exit();
-//            const auto byteswritten = write(tempbuffer, bytestowrite);
-//            if (byteswritten > 0)
-//            {
-//                const ScopedLock l(bufferCriticalSection);
-//                buffer.removeSection (0, byteswritten);
-//                bufferedbytes-=byteswritten;
-//            }
-//        }
-//    }
 }
 
 void SerialPortOutputStream::cancel ()
@@ -247,12 +224,25 @@ void SerialPortOutputStream::cancel ()
 
 bool SerialPortOutputStream::write(const void *dataToWrite, size_t howManyBytes)
 {
+    auto result = false;
     if (! port || port->portHandle == 0)
-        return false;
+        return result;
 
-    auto env = getEnv();
-    env->CallVoidMethod (port->usbSerialHelper, UsbSerialHelper.send);
-    
-    return true;
+    try {
+        auto env = getEnv();
+        jbyteArray data = env->NewByteArray (howManyBytes);
+        jbyte* jdata = env->GetByteArrayElements (data, nullptr);
+
+        for (int i = 0; i < howManyBytes; ++i)
+            jdata[i] = *static_cast<const unsigned char*>(dataToWrite);
+
+        result = (jboolean)  env->CallBooleanMethod (port->usbSerialHelper, UsbSerialHelper.send, data);
+        env->DeleteLocalRef (data);
+    } catch (const std::exception& e) {
+        DBG("********************* EXCEPTION IN SerialPortOutputStream::write()" + String(e.what()));
+        return false;
+    }
+
+    return result;
 }
 #endif // JUCE_ANDROID

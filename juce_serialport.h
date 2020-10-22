@@ -250,6 +250,6 @@ private:
 	juce::MemoryBlock buffer;
 	juce::CriticalSection bufferCriticalSection;
 	juce::WaitableEvent triggerWrite;
-	static const uint32_t writeBufferSize=128;
+	static const uint32_t writeBufferSize = 128;
 };
 #endif //_SERIALPORT_H_
