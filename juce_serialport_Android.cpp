@@ -37,6 +37,7 @@
 #define JNI_CLASS_MEMBERS(METHOD, STATICMETHOD, FIELD, STATICFIELD, CALLBACK) \
     METHOD (getSerialPortPaths, "getSerialPortPaths", "(Landroid/content/Context;)Ljava/lang/String;") \
     METHOD (send, "send", "()V") \
+    METHOD (read, "read", "([B)I") \
     METHOD (connect, "connect", "(I)Z")
 DECLARE_JNI_CLASS_WITH_MIN_SDK (UsbSerialHelper, "com/hoho/android/usbserial/UsbSerialHelper", 23)
 #undef JNI_CLASS_MEMBERS
@@ -118,6 +119,7 @@ void SerialPort::cancel ()
 {
     DBG("SerialPort::cancel ()");
 }
+
 bool SerialPort::setConfig(const SerialPortConfig & config)
 {
     return config.bps == 115200
@@ -150,28 +152,34 @@ bool SerialPort::getConfig(SerialPortConfig & config)
 /////////////////////////////////
 void SerialPortInputStream::run()
 {
-    DBG("SerialPortInputStream::run()");
+    while (port && port->portDescriptor != -1 && ! threadShouldExit())
+    {
+        auto env = getEnv();
+        jbyteArray result = env->NewByteArray (8192);
+        const int bytesRead = (jint)  env->CallIntMethod (port->usbSerialHelper, UsbSerialHelper.read, result);
+        if (bytesRead > 0)
+        {
+            jboolean isCopy;
+            jbyte* jbuffer = env->GetByteArrayElements (result, &isCopy);
 
-    //this code is taken from the osx version
-//    while (port && port->portDescriptor != -1 && ! threadShouldExit())
-//    {
-//        unsigned char c;
-//        const auto bytesread = read(&c, 1);
-//        if (bytesread == 1)
-//        {
-//            const ScopedLock l(bufferCriticalSection);
-//            buffer.ensureSize(bufferedbytes+1);
-//            buffer[bufferedbytes] = c;
-//            bufferedbytes++;
-//            if (notify==NOTIFY_ALWAYS || (notify == NOTIFY_ON_CHAR && c == notifyChar))
-//                sendChangeMessage();
-//        }
-//        else if (bytesread == -1)
-//        {
-//            port->close ();
-//            break;
-//        }
-//    }
+            {
+                const ScopedLock lock(bufferCriticalSection);
+                buffer.ensureSize(bufferedbytes + bytesRead);
+                for (int i = 0; i < bytesRead; ++i)
+                    buffer[bufferedbytes++] = jbuffer[i];
+            }
+
+            env->ReleaseByteArrayElements(result, jbuffer, 0);
+
+            if (notify == NOTIFY_ALWAYS)
+                sendChangeMessage();
+        }
+        else if (bytesRead == -1)
+        {
+            port->close ();
+            break;
+        }
+    }
 }
 
 void SerialPortInputStream::cancel ()
@@ -185,7 +193,6 @@ int SerialPortInputStream::read(void *destBuffer, int maxBytesToRead)
         return -1;
 
     //taken from OSX code
-    /*
     const ScopedLock l (bufferCriticalSection);
 
     if (maxBytesToRead > bufferedbytes)
@@ -195,9 +202,6 @@ int SerialPortInputStream::read(void *destBuffer, int maxBytesToRead)
     buffer.removeSection (0, maxBytesToRead);
     bufferedbytes -= maxBytesToRead;
     return maxBytesToRead;
-     */
-
-    return 0;
 }
 
 /////////////////////////////////
@@ -248,13 +252,7 @@ bool SerialPortOutputStream::write(const void *dataToWrite, size_t howManyBytes)
 
     auto env = getEnv();
     env->CallVoidMethod (port->usbSerialHelper, UsbSerialHelper.send);
-
-    //this code is taken from the osx version
-//    bufferCriticalSection.enter();
-//    buffer.append(dataToWrite, howManyBytes);
-//    bufferedbytes += (int) howManyBytes;
-//    bufferCriticalSection.exit();
-//    triggerWrite.signal();
+    
     return true;
 }
 #endif // JUCE_ANDROID

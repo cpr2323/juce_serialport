@@ -10,21 +10,21 @@ import android.hardware.usb.UsbDeviceConnection;
 import android.hardware.usb.UsbManager;
 import android.os.Handler;
 import android.os.Looper;
-import android.text.SpannableStringBuilder;
 import android.widget.Toast;
 
 import com.artiphon.orba.BuildConfig;
 import com.hoho.android.usbserial.driver.CdcAcmSerialDriver;
 import com.hoho.android.usbserial.driver.UsbSerialPort;
-import com.hoho.android.usbserial.util.HexDump;
 import com.hoho.android.usbserial.util.SerialInputOutputManager;
 
 import java.io.IOException;
-import java.util.Arrays;
+import java.util.ArrayDeque;
+import java.util.Deque;
 import java.util.concurrent.Executors;
 
 import static android.content.Context.USB_SERVICE;
 import java.util.List;
+import java.util.concurrent.locks.ReentrantLock;
 
 public class UsbSerialHelper implements SerialInputOutputManager.Listener {
 
@@ -46,6 +46,9 @@ public class UsbSerialHelper implements SerialInputOutputManager.Listener {
 
     Context context;
     Activity mainActivity;
+
+    Deque<Byte> readDeque;
+    ReentrantLock readDequeLock;
 
     public void DBG(String text, Context context) {
         Toast.makeText(context, text, Toast.LENGTH_SHORT).show();
@@ -79,21 +82,8 @@ public class UsbSerialHelper implements SerialInputOutputManager.Listener {
         context = contextIn;
         mainActivity = mainActivityIn;
         mainLooper = new Handler(Looper.getMainLooper());
-    }
-
-    @Override
-    public void onNewData(byte[] data) {
-        mainLooper.post(() -> {
-            receive(data);
-        });
-    }
-
-    @Override
-    public void onRunError(Exception e) {
-        mainLooper.post(() -> {
-            DBG("connection lost: " + e.getMessage(), context);
-            disconnect();
-        });
+        readDeque = new ArrayDeque<>(8192);
+        readDequeLock = new ReentrantLock();
     }
 
     public boolean connect(int portNum) {
@@ -102,7 +92,7 @@ public class UsbSerialHelper implements SerialInputOutputManager.Listener {
 
         //TODO: deal with the case where there`s more than 1 device
         for (UsbDevice v : usbManager.getDeviceList().values())
-//            if (v.getDeviceId() == deviceId)
+            //if (v.getDeviceId() == deviceId)
             device = v;
 
         if (device == null) {
@@ -179,31 +169,48 @@ public class UsbSerialHelper implements SerialInputOutputManager.Listener {
         }
     }
 
-    private void read() {
-        if (! connected) {
-            DBG("not connected", context);
-            return;
-        }
-
-        try {
-            byte[] buffer = new byte[8192];
-            int len = usbSerialPort.read(buffer, READ_WAIT_MILLIS);
-            //TODO: presumably here we'd call the equivalent of receive in c++ code
-            receive(Arrays.copyOf(buffer, len));
-        } catch (IOException e) {
-            // when using read with timeout, USB bulkTransfer returns -1 on timeout _and_ errors
-            // like connection loss, so there is typically no exception thrown here on error
+    @Override
+    public void onRunError(Exception e) {
+        mainLooper.post(() -> {
             DBG("connection lost: " + e.getMessage(), context);
             disconnect();
+        });
+    }
+
+    //TODO: should this be on another thread, in case we get another call to this callback while we're copying bytes?
+    @Override
+    public void onNewData(byte[] data) {
+        try {
+            readDequeLock.lock();
+            for (byte b : data)
+                readDeque.add(b);
+        } finally {
+            readDequeLock.unlock();
         }
     }
 
-    private void receive(byte[] data) {
-        SpannableStringBuilder spn = new SpannableStringBuilder();
-        spn.append("receive " + data.length + " bytes\n");
-        if(data.length > 0)
-            spn.append(HexDump.dumpHexString(data)+"\n");
+    //here we get a buffer that we need to fill (need to check that this is a reference)
+    public int read(byte[] buffer) {
+        if (! connected) {
+            DBG("not connected", context);
+            return 0;
+        }
 
-        DBG(spn.toString(), context);
+        int ret = 0;
+
+        try {
+            readDequeLock.lock();
+            int bufferedSize = readDeque.size();
+            for (int i = 0; i < readDeque.size(); ++i)
+                buffer[i] = readDeque.pop().byteValue();
+
+            ret = bufferedSize;
+        } catch (Exception e) {
+            DBG("**************** issue reading de_que: " + e.getMessage(), context);
+        } finally {
+            readDequeLock.unlock();
+        }
+
+        return ret;
     }
 }

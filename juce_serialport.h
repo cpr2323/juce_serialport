@@ -89,6 +89,7 @@ public:
 	SerialPortFlowControl flowcontrol;
 };
 
+//////////////////////////////////////////////////////////////////
 class JUCE_API SerialPort
 {
 public:
@@ -134,43 +135,49 @@ private:
 #endif
 };
 
+//////////////////////////////////////////////////////////////////
 class JUCE_API SerialPortInputStream : public juce::InputStream, public juce::ChangeBroadcaster, private juce::Thread
 {
 public:
-    SerialPortInputStream(SerialPort * port)
-    :Thread("SerialInThread"), port(port),bufferedbytes(0), notify(NOTIFY_OFF), notifyChar(0)
+    SerialPortInputStream(SerialPort * port) :
+		Thread("SerialInThread"), port(port),bufferedbytes(0), notify(NOTIFY_OFF), notifyChar(0)
 	{
 		startThread();
 	}
+
 	virtual ~SerialPortInputStream()
 	{
 		signalThreadShouldExit();
         cancel ();
         waitForThreadToExit (500);
 	}
+
 	enum notifyflag{NOTIFY_OFF=0, NOTIFY_ON_CHAR, NOTIFY_ALWAYS};
 	void setNotify(notifyflag _notify=NOTIFY_ON_CHAR, char c=0)
 	{
 		notifyChar = c;
 		this->notify = _notify;
 	}
+
 	bool canReadString()
 	{
-		const juce::ScopedLock l(bufferCriticalSection);
+		const juce::ScopedLock l (bufferCriticalSection);
 		int iNdx=0;
-		while(iNdx<bufferedbytes)
+		while (iNdx < bufferedbytes)
 			if(buffer[iNdx++]==0)return true;
 		return false;
 	}
+
 	bool canReadLine()
 	{
-		const juce::ScopedLock l(bufferCriticalSection);
+		const juce::ScopedLock l (bufferCriticalSection);
 		int iNdx=0;
-		while(iNdx<bufferedbytes)
-			if( buffer[iNdx++]=='\n' /*|| (buffer[iNdx++]=='\r')*/)
+		while (iNdx < bufferedbytes)
+			if (buffer[iNdx++]=='\n' /*|| (buffer[iNdx++]=='\r')*/)
 				return true;
 		return false;
 	}
+
 	virtual void run();
 	virtual int read(void *destBuffer, int maxBytesToRead);
 	virtual juce::String readNextLine() //have to override this, because InputStream::readNextLine isn't compatible with SerialPorts (uses setPos)
@@ -183,28 +190,34 @@ public:
 		s = s.trim();
 		return s;
 	}
+
 	virtual juce::int64 getTotalLength()
 	{
 		const juce::ScopedLock l(bufferCriticalSection);
 		return bufferedbytes;
 	};
+
 	virtual bool isExhausted()
 	{
 		const juce::ScopedLock l(bufferCriticalSection);
-		return bufferedbytes?false:true;
+		return bufferedbytes ? false : true;
 	};
+
 	virtual juce::int64 getPosition(){return 0;}
 	virtual bool setPosition(juce::int64 /*newPosition*/){return false;}
     virtual void cancel ();
     SerialPort* getPort() { return port; }
+
 private:
-	SerialPort * port;
+	SerialPort* port;
 	int bufferedbytes;
 	juce::MemoryBlock buffer;
 	juce::CriticalSection bufferCriticalSection;
 	notifyflag notify;
 	char notifyChar;
 };
+
+//////////////////////////////////////////////////////////////////
 
 class JUCE_API SerialPortOutputStream : public juce::OutputStream, private juce::Thread
 {
