@@ -34,9 +34,12 @@
 //when calling those methods, you have to use callXXXXMethod with XXXX being the return type
 //e.g., for getSerialPortPaths which returns a string, you call it with CallObjectMethod
 
+//METHOD (writeSingleChar, "writeSingleChar", "(B)Z") \
+//    METHOD (writeIntArray, "writeIntArray", "([I)Z") \
+
 #define JNI_CLASS_MEMBERS(METHOD, STATICMETHOD, FIELD, STATICFIELD, CALLBACK) \
     METHOD (getSerialPortPaths, "getSerialPortPaths", "(Landroid/content/Context;)Ljava/lang/String;") \
-    METHOD (send, "send", "([B)Z") \
+    METHOD (write, "write", "([B)Z") \
     METHOD (read, "read", "([B)I") \
     METHOD (connect, "connect", "(I)Z")
 DECLARE_JNI_CLASS_WITH_MIN_SDK (UsbSerialHelper, "com/hoho/android/usbserial/UsbSerialHelper", 23)
@@ -231,13 +234,37 @@ bool SerialPortOutputStream::write(const void *dataToWrite, size_t howManyBytes)
     try {
         auto env = getEnv();
         jbyteArray data = env->NewByteArray (howManyBytes);
-        jbyte* jdata = env->GetByteArrayElements (data, nullptr);
-
-        for (int i = 0; i < howManyBytes; ++i)
-            jdata[i] = *static_cast<const unsigned char*>(dataToWrite);
-
-        result = (jboolean)  env->CallBooleanMethod (port->usbSerialHelper, UsbSerialHelper.send, data);
+        env->SetByteArrayRegion(data, 0, howManyBytes, static_cast<const signed char *>(dataToWrite));
+        result = (jboolean)  env->CallBooleanMethod (port->usbSerialHelper, UsbSerialHelper.write, data);
         env->DeleteLocalRef (data);
+
+//        jintArray jArray  = env->NewIntArray(3);
+//        int cArray[] = {1, 2, 3};
+//        env->SetIntArrayRegion(jArray, 0, 3, cArray);
+//        result = (jboolean)  env->CallBooleanMethod (port->usbSerialHelper, UsbSerialHelper.writeIntArray, jArray);
+//
+//        //create a new jbyteArray of size howManyBytes
+//        jbyteArray data = env->NewByteArray (howManyBytes);
+//
+//        //get a pointer to the elements, so we can set them
+//        jbyte* jdata = env->GetByteArrayElements (data, nullptr);
+//
+//        //copy the contents of dataToWrite into jdata
+//        String dbg;
+//        for (int i = 0; i < howManyBytes; ++i)
+//        {
+//            auto byte = *static_cast<const unsigned char *>(dataToWrite);
+//            jdata[i] = byte;
+//            dbg += String(jdata[i]) + " ";
+//        }
+//        DBG("*************** SerialPortOutputStream::write(): " + dbg);
+//        result = (jboolean)  env->CallBooleanMethod (port->usbSerialHelper, UsbSerialHelper.write, data);
+//
+//        //delete data (hopefully it was processed by usbSerialHelper at this point, otherwise this should be at some later point, maybe when we get a response)
+////        env->DeleteLocalRef (data);
+//
+//        auto testByte = (const unsigned char) jdata[0];
+//        result = (jboolean)  env->CallBooleanMethod (port->usbSerialHelper, UsbSerialHelper.writeSingleChar, testByte);
     } catch (const std::exception& e) {
         DBG("********************* EXCEPTION IN SerialPortOutputStream::write()" + String(e.what()));
         return false;
