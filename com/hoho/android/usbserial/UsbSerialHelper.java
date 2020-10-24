@@ -201,8 +201,16 @@ public class UsbSerialHelper implements SerialInputOutputManager.Listener {
             return false;
         }
 
-        String dbg = new String(data);
-        Log.d("UsbSerialHelper#write", dbg);
+        StringBuilder dbg = new StringBuilder();
+        dbg.append("*************** UsbSerialHelper#write ():");
+        for (byte b1: data) {
+            String s1 = String.format("%8s", Integer.toBinaryString(b1 & 0xFF)).replace(' ', '0');
+            dbg.append(s1 + " ");
+        }
+        Log.d("UsbSerialHelper#write", dbg.toString());
+
+//        String dbg2 = new String(data);
+//        Log.d("UsbSerialHelper#write", dbg2);
 
         try {
             usbSerialPort.write(data, WRITE_WAIT_MILLIS);
