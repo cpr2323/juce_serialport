@@ -52,7 +52,7 @@ public class UsbSerialHelper implements SerialInputOutputManager.Listener {
     ReentrantLock readDequeLock;
 
     public void DBG(String text, Context context) {
-        Toast.makeText(context, text, Toast.LENGTH_SHORT).show();
+//        Toast.makeText(context, text, Toast.LENGTH_SHORT).show();
     }
 
     String getSerialPortPaths(Context contextIn) {
@@ -201,13 +201,12 @@ public class UsbSerialHelper implements SerialInputOutputManager.Listener {
             return false;
         }
 
-        StringBuilder dbg = new StringBuilder();
-        dbg.append("*************** UsbSerialHelper#write ():");
-        for (byte b1: data) {
-            String s1 = String.format("%8s", Integer.toBinaryString(b1 & 0xFF)).replace(' ', '0');
-            dbg.append(s1 + " ");
-        }
-        Log.d("UsbSerialHelper#write", dbg.toString());
+//        StringBuilder dbg = new StringBuilder("*************** UsbSerialHelper#write ():");
+//        for (byte b1: data) {
+//            String s1 = String.format("%8s", Integer.toBinaryString(b1 & 0xFF)).replace(' ', '0');
+//            dbg.append(s1 + " ");
+//        }
+//        Log.d("UsbSerialHelper#write", dbg.toString());
 
 //        String dbg2 = new String(data);
 //        Log.d("UsbSerialHelper#write", dbg2);
@@ -235,8 +234,19 @@ public class UsbSerialHelper implements SerialInputOutputManager.Listener {
     public void onNewData(byte[] data) {
         try {
             readDequeLock.lock();
+
+            StringBuilder dbg = new StringBuilder("*************** UsbSerialHelper#onNewData ():");
+            for (byte b1 : data) {
+                String s1 = String.format("%8s", Integer.toBinaryString(b1 & 0xFF)).replace(' ', '0');
+                dbg.append(s1 + " ");
+            }
+            Log.d("UsbSerialHelper#onNewDa", dbg.toString());
+
             for (byte b : data)
                 readDeque.add(b);
+
+        } catch (Exception e) {
+            DBG("**************** EXCEPTION IN onNewData(): " + e.getMessage(), context);
         } finally {
             readDequeLock.unlock();
         }
@@ -254,10 +264,19 @@ public class UsbSerialHelper implements SerialInputOutputManager.Listener {
         try {
             readDequeLock.lock();
             int bufferedSize = readDeque.size();
-            for (int i = 0; i < readDeque.size(); ++i)
-                buffer[i] = readDeque.pop().byteValue();
 
-            ret = bufferedSize;
+            if (bufferedSize > 0) {
+                StringBuilder dbg = new StringBuilder("*************** UsbSerialHelper#read ():");
+                for (int i = 0; i < bufferedSize; ++i) {
+                    buffer[i] = readDeque.pop().byteValue();
+
+                    String s1 = String.format("%8s", Integer.toBinaryString(buffer[i] & 0xFF)).replace(' ', '0');
+                    dbg.append(s1 + " ");
+                }
+                Log.d("UsbSerialHelper#read", dbg.toString());
+
+                ret = bufferedSize;
+            }
         } catch (Exception e) {
             DBG("**************** issue reading de_que: " + e.getMessage(), context);
         } finally {

@@ -155,6 +155,8 @@ bool SerialPort::getConfig(SerialPortConfig & config)
 /////////////////////////////////
 void SerialPortInputStream::run()
 {
+    try
+    {
     while (port && port->portDescriptor != -1 && ! threadShouldExit())
     {
         auto env = getEnv();
@@ -166,8 +168,14 @@ void SerialPortInputStream::run()
             {
                 const ScopedLock lock(bufferCriticalSection);
                 buffer.ensureSize(bufferedbytes + bytesRead);
+
+                String dbg;
                 for (int i = 0; i < bytesRead; ++i)
+                {
                     buffer[bufferedbytes++] = jbuffer[i];
+                    dbg += String (std::bitset<8>(static_cast<char>(buffer[bufferedbytes])).to_string()) + " ";
+                }
+                DBG("*************** SerialPortInputStream::run(): " + dbg);
             }
             env->ReleaseByteArrayElements(result, jbuffer, 0);
 
@@ -181,6 +189,9 @@ void SerialPortInputStream::run()
         }
 
         env->DeleteLocalRef(result);
+    }
+    } catch (const std::exception& e) {
+        DBG("********************* EXCEPTION IN SerialPortInputStream::run()" + String(e.what()));
     }
 }
 
@@ -233,15 +244,57 @@ bool SerialPortOutputStream::write(const void *dataToWrite, size_t howManyBytes)
 
     try {
         auto env = getEnv();
-        jbyteArray data = env->NewByteArray (howManyBytes);
-        env->SetByteArrayRegion(data, 0, howManyBytes, static_cast<const signed char *>(dataToWrite));
-        result = (jboolean)  env->CallBooleanMethod (port->usbSerialHelper, UsbSerialHelper.write, data);
-        env->DeleteLocalRef (data);
 
-//        jintArray jArray  = env->NewIntArray(3);
-//        int cArray[] = {1, 2, 3};
-//        env->SetIntArrayRegion(jArray, 0, 3, cArray);
-//        result = (jboolean)  env->CallBooleanMethod (port->usbSerialHelper, UsbSerialHelper.writeIntArray, jArray);
+//        {
+//            jintArray jIntArray = env->NewIntArray(3);
+//            int cIntArray[] = {1, 2, 3};
+//            env->SetIntArrayRegion(jIntArray, 0, 3, cIntArray);
+//            result = (jboolean) env->CallBooleanMethod(port->usbSerialHelper, UsbSerialHelper.writeIntArray, jIntArray);
+//        }
+//
+//        {
+//            jbyteArray jByteArray = env->NewByteArray(howManyBytes);
+//            signed char cSignedCharArray[3];
+//            String dbg;
+//            for (int i = 0; i < 3; ++i)
+//            {
+////                auto byte = *static_cast<const unsigned char*>(dataToWrite);
+//                std::bitset<8> x (std::string("11"));
+//                cSignedCharArray[i] = static_cast<signed char>(x.to_ulong());
+//                dbg += String (x.to_string()) + " ";
+//            }
+//            DBG("*************** SerialPortOutputStream::write1 (): " + dbg);
+//
+//
+//            env->SetByteArrayRegion(jByteArray, 0, 3, cSignedCharArray);
+//            result = (jboolean) env->CallBooleanMethod(port->usbSerialHelper, UsbSerialHelper.write, jByteArray);
+//            env->DeleteLocalRef(jByteArray);
+//        }
+
+        {
+            jbyteArray jByteArray = env->NewByteArray(howManyBytes);
+            signed char cSignedCharArray[howManyBytes];
+            String dbg;
+            for (int i = 0; i < howManyBytes; ++i)
+            {
+                cSignedCharArray[i] = static_cast<const signed char*>(dataToWrite)[i];
+                dbg += String (std::bitset<8>(cSignedCharArray[i]).to_string()) + " ";
+            }
+//            DBG("*************** SerialPortOutputStream::write (): " + dbg);
+
+            env->SetByteArrayRegion(jByteArray, 0, howManyBytes, cSignedCharArray);
+            result = (jboolean) env->CallBooleanMethod(port->usbSerialHelper, UsbSerialHelper.write, jByteArray);
+            env->DeleteLocalRef(jByteArray);
+        }
+
+//        {
+//            jbyteArray data = env->NewByteArray(howManyBytes);
+//            env->SetByteArrayRegion(data, 0, howManyBytes, static_cast<const signed char *>(dataToWrite));
+//            result = (jboolean) env->CallBooleanMethod(port->usbSerialHelper, UsbSerialHelper.write, data);
+//            env->DeleteLocalRef(data);
+//        }
+
+
 //
 //        //create a new jbyteArray of size howManyBytes
 //        jbyteArray data = env->NewByteArray (howManyBytes);

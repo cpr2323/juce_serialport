@@ -149,7 +149,7 @@ public:
 	{
 		signalThreadShouldExit();
         cancel ();
-        waitForThreadToExit (500);
+        waitForThreadToExit (5000);
 	}
 
 	enum notifyflag{NOTIFY_OFF=0, NOTIFY_ON_CHAR, NOTIFY_ALWAYS};
