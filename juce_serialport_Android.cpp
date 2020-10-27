@@ -8,10 +8,8 @@
 
 #include <juce_core/native/juce_android_JNIHelpers.h>
 
-/**
- * JNI Cheat-sheet
-
- example JNI declaration calling android core code
+/** JNI Cheat-sheet
+Example JNI declaration calling android core code:
 #define JNI_CLASS_MEMBERS(METHOD, STATICMETHOD, FIELD, STATICFIELD, CALLBACK) \
     DECLARE_JNI_CLASS (UsbDevice, "android/hardware/usb/UsbDevice")
 #undef JNI_CLASS_MEMBERS
@@ -22,7 +20,7 @@ example JNI declaration calling juce code
     DECLARE_JNI_CLASS_WITH_MIN_SDK (AndroidJuceMidiSupport, "com/rmsl/juce/JuceMidiSupport", 23)
 #undef JNI_CLASS_MEMBERS
 
-JNI type conversions
+JNI type conversions:
 Z	                        boolean
 B	                        byte
 C	                        char
@@ -35,8 +33,8 @@ V                           void (only for return type)
 Lfully-qualified-class;	fully-qualified-class
 [type                     type[]
 
-when calling JNI methods, you need to use callXXXXMethod with XXXX being the return type
-e.g., for getSerialPortPaths which returns a string, you call it with env->CallObjectMethod()
+When calling JNI methods, you need to use callXXXXMethod with XXXX being the return type.
+E.g., for getSerialPortPaths which returns a string, you call it with env->CallObjectMethod()
 */
 
 #define JNI_CLASS_MEMBERS(METHOD, STATICMETHOD, FIELD, STATICFIELD, CALLBACK) \
@@ -47,7 +45,6 @@ e.g., for getSerialPortPaths which returns a string, you call it with env->CallO
     METHOD (read, "read", "([B)I")
     DECLARE_JNI_CLASS_WITH_MIN_SDK (UsbSerialHelper, "com/hoho/android/usbserial/UsbSerialHelper", 23)
 #undef JNI_CLASS_MEMBERS
-
 
 StringPairArray SerialPort::getSerialPortPaths()
 {
@@ -61,13 +58,12 @@ StringPairArray SerialPort::getSerialPortPaths()
         jobject usbSerialHelper = env->NewObject(UsbSerialHelper, constructorMethodId, context.get(), getMainActivity().get());
 
         auto portNames = juce::juceString ((jstring) env->CallObjectMethod (usbSerialHelper, UsbSerialHelper.getSerialPortPaths, context.get()));
-
         auto stringArray = StringArray::fromTokens(portNames, "-", "");
         auto numPorts = stringArray.size();
         if (numPorts > 0)
         {
             //DBG("******************************* portNames = " + portNames + "; numPorts = " + String(numPorts));
-            //unclear why, but there's an empty token at the end of the stringArray, so skipping that one
+            //with the way that StringArray::fromTokens() works, the last token is empty, so skip it
             for (int i = 0; i < numPorts - 1; ++i)
                 serialPortPaths.set(String(i), stringArray[i]);
         }
@@ -87,36 +83,36 @@ void SerialPort::close()
 
 bool SerialPort::exists()
 {
-    return (portDescriptor != -1);
+//    return (portDescriptor != -1);
+    return ! getEnv()->IsSameObject(usbSerialHelper, NULL);
 }
 
 bool SerialPort::open(const String & newPortPath)
 {
-    DBG("************************ SerialPort::open()");
+    //DBG("************************ SerialPort::open()");
     portPath = newPortPath;
     portDescriptor = newPortPath.getIntValue();
 
     bool result = false;
     try
     {
-        GlobalRef context(getAppContext());
         auto env = getEnv();
-        GlobalRef mainActivity(getMainActivity());
 
+        //construct the usbSerialHelper
         jmethodID constructorMethodId = env->GetMethodID(UsbSerialHelper, "<init>", "(Landroid/content/Context;Landroid/app/Activity;)V");
-        jobject temp = env->NewObject(UsbSerialHelper, constructorMethodId, context.get(), mainActivity.get());
-        usbSerialHelper = (jobject) env->NewGlobalRef(temp);
-
+        jobject tempUsbSerialHelper = env->NewObject(UsbSerialHelper, constructorMethodId, getAppContext().get(), getMainActivity().get());
+        usbSerialHelper = (jobject) env->NewGlobalRef(tempUsbSerialHelper);
         portHandle = &usbSerialHelper;
+
+        //attempt to connect to the newPortPath
         result = (jboolean) env->CallBooleanMethod (usbSerialHelper, UsbSerialHelper.connect, newPortPath.getIntValue());
     } catch (const std::exception& e) {
         DBG("********************* EXCEPTION IN SerialPort::open()" + String(e.what()));
+
+        portPath = "";
+        portDescriptor = -1;
     }
 
-    if (result)
-        DBG("********************* SerialPort::open() succeded");
-    else
-        DBG("********************* SerialPort::open() FAILED");
     return result;
 }
 
