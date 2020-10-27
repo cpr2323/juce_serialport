@@ -139,6 +139,10 @@ public class UsbSerialHelper implements SerialInputOutputManager.Listener {
         return true;
     }
 
+    public boolean isOpen() {
+        return usbSerialPort != null && usbSerialPort.isOpen();
+    }
+
     private void disconnect() {
         connected = false;
 
@@ -186,24 +190,24 @@ public class UsbSerialHelper implements SerialInputOutputManager.Listener {
         });
     }
 
-    //TODO: should this be on another thread, in case we get another call to this callback while we're copying bytes?
+    //TODO: should this be coalesced in another thread, in case we get another call to this callback while we're copying bytes?
     @Override
     public void onNewData(byte[] data) {
         try {
             readDequeLock.lock();
 
-            StringBuilder dbg = new StringBuilder("*************** UsbSerialHelper#onNewData ():");
-            for (byte b1 : data) {
-                String s1 = String.format("%8s", Integer.toBinaryString(b1 & 0xFF)).replace(' ', '0');
-                dbg.append(s1 + " ");
-            }
-            Log.d("UsbSerialHelper#onNewDa", dbg.toString());
+//            StringBuilder dbg = new StringBuilder("*************** UsbSerialHelper#onNewData ():");
+//            for (byte b1 : data) {
+//                String s1 = String.format("%8s", Integer.toBinaryString(b1 & 0xFF)).replace(' ', '0');
+//                dbg.append(s1 + " ");
+//            }
+//            Log.d("UsbSerialHelper#onNewDa", dbg.toString());
 
             for (byte b : data)
                 readDeque.add(b);
 
         } catch (Exception e) {
-            DBG("**************** EXCEPTION IN onNewData(): " + e.getMessage(), context);
+            e.printStackTrace();
         } finally {
             readDequeLock.unlock();
         }

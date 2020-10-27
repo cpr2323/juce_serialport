@@ -40,6 +40,7 @@ E.g., for getSerialPortPaths which returns a string, you call it with env->CallO
 #define JNI_CLASS_MEMBERS(METHOD, STATICMETHOD, FIELD, STATICFIELD, CALLBACK) \
     METHOD (getSerialPortPaths, "getSerialPortPaths", "(Landroid/content/Context;)Ljava/lang/String;") \
     METHOD (connect, "connect", "(I)Z") \
+    METHOD (isOpen, "isOpen", "()Z") \
     METHOD (disconnect, "disconnect", "()V") \
     METHOD (write, "write", "([B)Z") \
     METHOD (read, "read", "([B)I")
@@ -83,8 +84,8 @@ void SerialPort::close()
 
 bool SerialPort::exists()
 {
-//    return (portDescriptor != -1);
-    return ! getEnv()->IsSameObject(usbSerialHelper, NULL);
+    auto env = getEnv();
+    return ! env->IsSameObject(usbSerialHelper, NULL) && env->CallBooleanMethod (usbSerialHelper, UsbSerialHelper.isOpen);
 }
 
 bool SerialPort::open(const String & newPortPath)
