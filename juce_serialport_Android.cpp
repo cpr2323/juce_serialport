@@ -8,42 +8,44 @@
 
 #include <juce_core/native/juce_android_JNIHelpers.h>
 
-////JNI to call android core stuff
-//#define JNI_CLASS_MEMBERS(METHOD, STATICMETHOD, FIELD, STATICFIELD, CALLBACK) \
-//    DECLARE_JNI_CLASS (UsbDevice, "android/hardware/usb/UsbDevice")
-//#undef JNI_CLASS_MEMBERS
+/**
+ * JNI Cheat-sheet
 
-////JNI to call juce stuff
-//#define JNI_CLASS_MEMBERS(METHOD, STATICMETHOD, FIELD, STATICFIELD, CALLBACK) \
-//    STATICMETHOD (getAndroidBluetoothManager, "getAndroidBluetoothManager", "(Landroid/content/Context;)Lcom/rmsl/juce/JuceMidiSupport$BluetoothManager;")
-//    DECLARE_JNI_CLASS_WITH_MIN_SDK (AndroidJuceMidiSupport, "com/rmsl/juce/JuceMidiSupport", 23)
-//#undef JNI_CLASS_MEMBERS
+ example JNI declaration calling android core code
+#define JNI_CLASS_MEMBERS(METHOD, STATICMETHOD, FIELD, STATICFIELD, CALLBACK) \
+    DECLARE_JNI_CLASS (UsbDevice, "android/hardware/usb/UsbDevice")
+#undef JNI_CLASS_MEMBERS
 
-////JNI type conversions
-//Z	                        boolean
-//B	                        byte
-//C	                        char
-//S	                        short
-//I	                        int
-//J	                        long
-//F	                        float
-//D	                        double
-//Lfully-qualified-class;	fully-qualified-class
-//[type                   type[]
+example JNI declaration calling juce code
+#define JNI_CLASS_MEMBERS(METHOD, STATICMETHOD, FIELD, STATICFIELD, CALLBACK) \
+    STATICMETHOD (getAndroidBluetoothManager, "getAndroidBluetoothManager", "(Landroid/content/Context;)Lcom/rmsl/juce/JuceMidiSupport$BluetoothManager;")
+    DECLARE_JNI_CLASS_WITH_MIN_SDK (AndroidJuceMidiSupport, "com/rmsl/juce/JuceMidiSupport", 23)
+#undef JNI_CLASS_MEMBERS
 
-//when calling those methods, you have to use callXXXXMethod with XXXX being the return type
-//e.g., for getSerialPortPaths which returns a string, you call it with CallObjectMethod
+JNI type conversions
+Z	                        boolean
+B	                        byte
+C	                        char
+S	                        short
+I	                        int
+J	                        long
+F	                        float
+D	                        double
+Lfully-qualified-class;	fully-qualified-class
+[type                     type[]
 
-//METHOD (writeSingleChar, "writeSingleChar", "(B)Z") \
-//    METHOD (writeIntArray, "writeIntArray", "([I)Z") \
+when calling JNI methods, you need to use callXXXXMethod with XXXX being the return type
+e.g., for getSerialPortPaths which returns a string, you call it with env->CallObjectMethod()
+*/
 
 #define JNI_CLASS_MEMBERS(METHOD, STATICMETHOD, FIELD, STATICFIELD, CALLBACK) \
     METHOD (getSerialPortPaths, "getSerialPortPaths", "(Landroid/content/Context;)Ljava/lang/String;") \
+    METHOD (connect, "connect", "(I)Z") \
     METHOD (write, "write", "([B)Z") \
-    METHOD (read, "read", "([B)I") \
-    METHOD (connect, "connect", "(I)Z")
-DECLARE_JNI_CLASS_WITH_MIN_SDK (UsbSerialHelper, "com/hoho/android/usbserial/UsbSerialHelper", 23)
+    METHOD (read, "read", "([B)I")
+    DECLARE_JNI_CLASS_WITH_MIN_SDK (UsbSerialHelper, "com/hoho/android/usbserial/UsbSerialHelper", 23)
 #undef JNI_CLASS_MEMBERS
+
 
 StringPairArray SerialPort::getSerialPortPaths()
 {
