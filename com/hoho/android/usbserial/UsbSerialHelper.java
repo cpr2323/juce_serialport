@@ -40,9 +40,6 @@ public class UsbSerialHelper implements SerialInputOutputManager.Listener {
     private UsbPermission usbPermission = UsbPermission.Unknown;
     private boolean connected = false;
 
-    //This value is taken from ArtiCommSerialPort::internalOpen()
-    private int baudRate = 115200;
-
     Context context;
     Activity mainActivity;
 
@@ -51,6 +48,7 @@ public class UsbSerialHelper implements SerialInputOutputManager.Listener {
 
     public void DBG(String text, Context context) {
 //        Toast.makeText(context, text, Toast.LENGTH_SHORT).show();
+        Log.d("UsbSerialHelper#DBG", text);
     }
 
     String getSerialPortPaths(Context contextIn) {
@@ -66,11 +64,10 @@ public class UsbSerialHelper implements SerialInputOutputManager.Listener {
                 for (UsbSerialPort s : ports)
                     allPorts += "serialport " + s.getPortNumber() + "-";
 
-                DBG(allPorts, context);
+//                DBG(allPorts, context);
                 return allPorts;
             }
         } catch (Exception e) {
-            DBG("****************************** exception!!! ", context);
             e.printStackTrace();
         }
 
@@ -125,14 +122,16 @@ public class UsbSerialHelper implements SerialInputOutputManager.Listener {
 
         try {
             usbSerialPort.open(usbConnection);
-            usbSerialPort.setParameters(baudRate, 8, UsbSerialPort.STOPBITS_1, UsbSerialPort.PARITY_NONE);
+
+            //these should be set in setConfig
+            usbSerialPort.setParameters(115200, 8, UsbSerialPort.STOPBITS_1, UsbSerialPort.PARITY_NONE);
 
             usbIoManager = new SerialInputOutputManager(usbSerialPort, this);
             Executors.newSingleThreadExecutor().submit(usbIoManager);
 
             connected = true;
         } catch (Exception e) {
-            DBG("connection failed: " + e.getMessage(), context);
+            e.printStackTrace();
             disconnect();
             return false;
         }
@@ -150,7 +149,9 @@ public class UsbSerialHelper implements SerialInputOutputManager.Listener {
         try {
             if (usbSerialPort != null)
                 usbSerialPort.close();
-        } catch (IOException ignored) {}
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
         usbSerialPort = null;
     }
 
@@ -166,9 +167,6 @@ public class UsbSerialHelper implements SerialInputOutputManager.Listener {
 //            dbg.append(s1 + " ");
 //        }
 //        Log.d("UsbSerialHelper#write", dbg.toString());
-
-//        String dbg2 = new String(data);
-//        Log.d("UsbSerialHelper#write", dbg2);
 
         try {
             usbSerialPort.write(data, WRITE_WAIT_MILLIS);
