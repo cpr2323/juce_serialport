@@ -1,6 +1,5 @@
 package com.hoho.android.usbserial;
 
-
 import android.app.Activity;
 import android.app.PendingIntent;
 import android.content.Context;
@@ -11,7 +10,6 @@ import android.hardware.usb.UsbManager;
 import android.os.Handler;
 import android.os.Looper;
 import android.util.Log;
-import android.widget.Toast;
 
 import com.artiphon.orba.BuildConfig;
 import com.hoho.android.usbserial.driver.CdcAcmSerialDriver;
@@ -150,50 +148,11 @@ public class UsbSerialHelper implements SerialInputOutputManager.Listener {
         usbIoManager = null;
 
         try {
-            usbSerialPort.close();
+            if (usbSerialPort != null)
+                usbSerialPort.close();
         } catch (IOException ignored) {}
         usbSerialPort = null;
     }
-
-//    public boolean writeIntArray (int[] data) {
-//        if (! connected) {
-//            DBG("not connected", context);
-//            return false;
-//        }
-//
-//        StringBuilder dbg = new StringBuilder();
-//        for (int i : data)
-//            dbg.append(i);
-//        Log.d("UsbSerialHelper#writeIntArray", dbg.toString());
-//
-//        try {
-////            usbSerialPort.write(data, WRITE_WAIT_MILLIS);
-//        } catch (Exception e) {
-//            onRunError(e);
-//            return false;
-//        }
-//
-//        return true;
-//        }
-//
-//    public boolean writeSingleChar (byte data) {
-//        if (! connected) {
-//            DBG("not connected", context);
-//            return false;
-//        }
-//
-//        String dbg = new String(String.valueOf(data));
-//        Log.d("UsbSerialHelper#write", dbg);
-//
-//        try {
-////            usbSerialPort.write(data, WRITE_WAIT_MILLIS);
-//        } catch (Exception e) {
-//            onRunError(e);
-//            return false;
-//        }
-//
-//        return true;
-//    }
 
     public boolean write (byte[] data) {
         if (! connected) {

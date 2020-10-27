@@ -31,6 +31,7 @@ I	                        int
 J	                        long
 F	                        float
 D	                        double
+V                           void (only for return type)
 Lfully-qualified-class;	fully-qualified-class
 [type                     type[]
 
@@ -41,6 +42,7 @@ e.g., for getSerialPortPaths which returns a string, you call it with env->CallO
 #define JNI_CLASS_MEMBERS(METHOD, STATICMETHOD, FIELD, STATICFIELD, CALLBACK) \
     METHOD (getSerialPortPaths, "getSerialPortPaths", "(Landroid/content/Context;)Ljava/lang/String;") \
     METHOD (connect, "connect", "(I)Z") \
+    METHOD (disconnect, "disconnect", "()V") \
     METHOD (write, "write", "([B)Z") \
     METHOD (read, "read", "([B)I")
     DECLARE_JNI_CLASS_WITH_MIN_SDK (UsbSerialHelper, "com/hoho/android/usbserial/UsbSerialHelper", 23)
@@ -53,13 +55,10 @@ StringPairArray SerialPort::getSerialPortPaths()
     try
     {
         auto env = getEnv();
-        jmethodID constructorMethodId = env->GetMethodID(UsbSerialHelper, "<init>", "(Landroid/content/Context;Landroid/app/Activity;)V");
-
         //objects need to be saved as GlobalRef's if they are to be passed between JNI calls.
-        //not sure what the impact of this has overall though -- is it like creating a ton of different global objects?
         GlobalRef context(getAppContext());
-        GlobalRef mainActivity(getMainActivity());
-        jobject usbSerialHelper = env->NewObject(UsbSerialHelper, constructorMethodId, context.get(), mainActivity.get());
+        jmethodID constructorMethodId = env->GetMethodID(UsbSerialHelper, "<init>", "(Landroid/content/Context;Landroid/app/Activity;)V");
+        jobject usbSerialHelper = env->NewObject(UsbSerialHelper, constructorMethodId, context.get(), getMainActivity().get());
 
         auto portNames = juce::juceString ((jstring) env->CallObjectMethod (usbSerialHelper, UsbSerialHelper.getSerialPortPaths, context.get()));
 
@@ -67,7 +66,7 @@ StringPairArray SerialPort::getSerialPortPaths()
         auto numPorts = stringArray.size();
         if (numPorts > 0)
         {
-            DBG("******************************* portNames = " + portNames + "; numPorts = " + String(numPorts));
+            //DBG("******************************* portNames = " + portNames + "; numPorts = " + String(numPorts));
             //unclear why, but there's an empty token at the end of the stringArray, so skipping that one
             for (int i = 0; i < numPorts - 1; ++i)
                 serialPortPaths.set(String(i), stringArray[i]);
@@ -75,14 +74,15 @@ StringPairArray SerialPort::getSerialPortPaths()
         return serialPortPaths;
     } catch (const std::exception& e) {
         DBG("EXCEPTION IN SerialPort::getSerialPortPaths()" + String(e.what()));
+        return serialPortPaths;
     }
-
-    return serialPortPaths;
 }
 
 void SerialPort::close()
 {
-    DBG("SerialPort::close ()");
+    auto env = getEnv();
+    if (! env->IsSameObject(usbSerialHelper, NULL))
+        env->CallVoidMethod (usbSerialHelper, UsbSerialHelper.disconnect);
 }
 
 bool SerialPort::exists()
