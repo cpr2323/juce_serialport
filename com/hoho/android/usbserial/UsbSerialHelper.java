@@ -33,6 +33,11 @@ public class UsbSerialHelper implements SerialInputOutputManager.Listener {
     private static final int WRITE_WAIT_MILLIS = 2000;
     private static final int READ_WAIT_MILLIS = 2000;
 
+    private int baudRate = -1;
+    private int dataBits = -1;
+    private int stopBits = -1;
+    private int parity = -1;
+
     private Handler mainLooper;
 
     private SerialInputOutputManager usbIoManager;
@@ -64,7 +69,6 @@ public class UsbSerialHelper implements SerialInputOutputManager.Listener {
                 for (UsbSerialPort s : ports)
                     allPorts += "serialport " + s.getPortNumber() + "-";
 
-//                DBG(allPorts, context);
                 return allPorts;
             }
         } catch (Exception e) {
@@ -123,8 +127,9 @@ public class UsbSerialHelper implements SerialInputOutputManager.Listener {
         try {
             usbSerialPort.open(usbConnection);
 
-            //these should be set in setConfig
-            usbSerialPort.setParameters(115200, 8, UsbSerialPort.STOPBITS_1, UsbSerialPort.PARITY_NONE);
+            //these should be set in setConfig, try to remove this to see
+            setParameters(115200, 8, UsbSerialPort.STOPBITS_1, UsbSerialPort.PARITY_NONE);
+//            usbSerialPort.setParameters(115200, 8, UsbSerialPort.STOPBITS_1, UsbSerialPort.PARITY_NONE);
 
             usbIoManager = new SerialInputOutputManager(usbSerialPort, this);
             Executors.newSingleThreadExecutor().submit(usbIoManager);
@@ -137,6 +142,24 @@ public class UsbSerialHelper implements SerialInputOutputManager.Listener {
         }
 
         return true;
+    }
+
+    public boolean setParameters(int baudRateIn, int dataBitsIn, int stopBitsIn, int parityIn) {
+        try {
+            usbSerialPort.setParameters(baudRateIn, dataBitsIn, stopBitsIn, parityIn);
+            baudRate = baudRateIn;
+            dataBits = dataBitsIn;
+            stopBits = stopBitsIn;
+            parity = parityIn;
+            return true;
+        } catch (IOException e) {
+            e.printStackTrace();
+            baudRate = -1;
+            dataBits = -1;
+            stopBits = -1;
+            parity = -1;
+            return false;
+        }
     }
 
     public boolean isOpen() {

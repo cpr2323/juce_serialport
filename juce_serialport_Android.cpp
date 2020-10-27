@@ -35,12 +35,19 @@ Lfully-qualified-class;	fully-qualified-class
 
 When calling JNI methods, you need to use callXXXXMethod with XXXX being the return type.
 E.g., for getSerialPortPaths which returns a string, you call it with env->CallObjectMethod()
+
+ jfieldID mapId = (*env)->GetFieldID(env,jCls,"nameOfMapVariable","Ljava/util/Map;");
 */
 
 #define JNI_CLASS_MEMBERS(METHOD, STATICMETHOD, FIELD, STATICFIELD, CALLBACK) \
+    FIELD (baudRate, "baudRate", "I") \
+    FIELD (dataBits, "dataBits", "I") \
+    FIELD (stopBits, "stopBits", "I") \
+    FIELD (parity, "parity", "I") \
     METHOD (getSerialPortPaths, "getSerialPortPaths", "(Landroid/content/Context;)Ljava/lang/String;") \
     METHOD (connect, "connect", "(I)Z") \
     METHOD (isOpen, "isOpen", "()Z") \
+    METHOD (setParameters, "setParameters", "(IIII)Z") \
     METHOD (disconnect, "disconnect", "()V") \
     METHOD (write, "write", "([B)Z") \
     METHOD (read, "read", "([B)I")
@@ -90,7 +97,6 @@ bool SerialPort::exists()
 
 bool SerialPort::open(const String & newPortPath)
 {
-    //DBG("************************ SerialPort::open()");
     portPath = newPortPath;
     portDescriptor = newPortPath.getIntValue();
 
@@ -124,11 +130,17 @@ void SerialPort::cancel ()
 
 bool SerialPort::setConfig(const SerialPortConfig & config)
 {
-    return config.bps == 115200
-        && config.databits == 8
-        && config.stopbits == SerialPortConfig::STOPBITS_1
-        && config.parity == SerialPortConfig::SERIALPORT_PARITY_NONE
-        && config.flowcontrol == SerialPortConfig::FLOWCONTROL_NONE;
+    if (true)
+        return true;
+
+    auto env = getEnv();
+    return env->CallBooleanMethod(usbSerialHelper, UsbSerialHelper.setParameters, config.bps, config.databits, config.stopbits, config.parity);
+
+//    return config.bps == 115200
+//        && config.databits == 8
+//        && config.stopbits == SerialPortConfig::STOPBITS_1
+//        && config.parity == SerialPortConfig::SERIALPORT_PARITY_NONE
+//        && config.flowcontrol == SerialPortConfig::FLOWCONTROL_NONE;
 }
 
 bool SerialPort::getConfig(SerialPortConfig & config)
@@ -136,15 +148,33 @@ bool SerialPort::getConfig(SerialPortConfig & config)
     if (! portHandle)
         return false;
 
-    //this is what is hardcoded in UsbSerialHelper.java
-    //public void setParameters(int baudRate, int dataBits, int stopBits, int parity) throws IOException;
-    //usbSerialPort.setParameters(baudRate, 8, UsbSerialPort.STOPBITS_1, UsbSerialPort.PARITY_NONE);
+    if (false)
+    {
+        //this is what is hardcoded in UsbSerialHelper.java
+        //public void setParameters(int baudRate, int dataBits, int stopBits, int parity) throws IOException;
+        //usbSerialPort.setParameters(baudRate, 8, UsbSerialPort.STOPBITS_1, UsbSerialPort.PARITY_NONE);
+        auto env = getEnv();
+        const auto baudRate { (jint) env->GetIntField(usbSerialHelper, UsbSerialHelper.baudRate) };
+        const auto dataBits { (jint) env->GetIntField(usbSerialHelper, UsbSerialHelper.dataBits) };
+        const auto stopBits { (jint) env->GetIntField(usbSerialHelper, UsbSerialHelper.stopBits) };
+        const auto parity { (jint) env->GetIntField(usbSerialHelper, UsbSerialHelper.parity) };
+        DBG("********************************* BAUDRATE: " + String(baudRate) + " dataBits: " + String(dataBits) + " stopBits: " + String(stopBits) + " parity: " + String(parity));
 
-    config.bps = 115200;
-    config.databits = 8;
-    config.stopbits = SerialPortConfig::STOPBITS_1;
-    config.parity = SerialPortConfig::SERIALPORT_PARITY_NONE;
-    config.flowcontrol = SerialPortConfig::FLOWCONTROL_NONE;
+        config.bps = baudRate;
+        config.databits = dataBits;
+        //this will need some proper conversion
+        config.stopbits = (SerialPortConfig::SerialPortStopBits) stopBits;
+        config.parity = (SerialPortConfig::SerialPortParity) parity;
+        config.flowcontrol = SerialPortConfig::FLOWCONTROL_NONE;
+    }
+    else
+    {
+        config.bps = 115200;
+        config.databits = 8;
+        config.stopbits = SerialPortConfig::STOPBITS_1;
+        config.parity = SerialPortConfig::SERIALPORT_PARITY_NONE;
+        config.flowcontrol = SerialPortConfig::FLOWCONTROL_NONE;
+    }
 
     return true;
 }
@@ -160,7 +190,7 @@ void SerialPortInputStream::run()
     {
         auto env = getEnv();
         jbyteArray result = env->NewByteArray (8192);
-        const int bytesRead = (jint)  env->CallIntMethod (port->usbSerialHelper, UsbSerialHelper.read, result);
+        const int bytesRead = (jint) env->CallIntMethod (port->usbSerialHelper, UsbSerialHelper.read, result);
         if (bytesRead > 0)
         {
             jbyte* jbuffer = env->GetByteArrayElements (result, nullptr);
@@ -168,13 +198,13 @@ void SerialPortInputStream::run()
                 const ScopedLock lock(bufferCriticalSection);
                 buffer.ensureSize(bufferedbytes + bytesRead);
 
-                String dbg;
+                //String dbg;
                 for (int i = 0; i < bytesRead; ++i)
                 {
                     buffer[bufferedbytes++] = jbuffer[i];
-                    dbg += String (std::bitset<8>(static_cast<char>(buffer[bufferedbytes])).to_string()) + " ";
+                    //dbg += String (std::bitset<8>(static_cast<char>(buffer[bufferedbytes])).to_string()) + " ";
                 }
-                DBG("*************** SerialPortInputStream::run(): " + dbg);
+                //DBG("*************** SerialPortInputStream::run(): " + dbg);
             }
             env->ReleaseByteArrayElements(result, jbuffer, 0);
 
@@ -196,7 +226,6 @@ void SerialPortInputStream::run()
 
 void SerialPortInputStream::cancel ()
 {
-    DBG("SerialPortInputStream::cancel()");
 }
 
 int SerialPortInputStream::read(void *destBuffer, int maxBytesToRead)
@@ -204,7 +233,6 @@ int SerialPortInputStream::read(void *destBuffer, int maxBytesToRead)
     if (! port || port->portHandle == 0)
         return -1;
 
-    //taken from OSX code
     const ScopedLock l (bufferCriticalSection);
 
     if (maxBytesToRead > bufferedbytes)
@@ -227,8 +255,6 @@ void SerialPortOutputStream::run()
 
 void SerialPortOutputStream::cancel ()
 {
-    DBG("SerialPortOutputStream::cancel()");
-
     if (! port || port->portHandle == 0)
         return;
 
@@ -243,80 +269,20 @@ bool SerialPortOutputStream::write(const void *dataToWrite, size_t howManyBytes)
 
     try {
         auto env = getEnv();
+        jbyteArray jByteArray = env->NewByteArray(howManyBytes);
+        signed char cSignedCharArray[howManyBytes];
 
-//        {
-//            jintArray jIntArray = env->NewIntArray(3);
-//            int cIntArray[] = {1, 2, 3};
-//            env->SetIntArrayRegion(jIntArray, 0, 3, cIntArray);
-//            result = (jboolean) env->CallBooleanMethod(port->usbSerialHelper, UsbSerialHelper.writeIntArray, jIntArray);
-//        }
-//
-//        {
-//            jbyteArray jByteArray = env->NewByteArray(howManyBytes);
-//            signed char cSignedCharArray[3];
-//            String dbg;
-//            for (int i = 0; i < 3; ++i)
-//            {
-////                auto byte = *static_cast<const unsigned char*>(dataToWrite);
-//                std::bitset<8> x (std::string("11"));
-//                cSignedCharArray[i] = static_cast<signed char>(x.to_ulong());
-//                dbg += String (x.to_string()) + " ";
-//            }
-//            DBG("*************** SerialPortOutputStream::write1 (): " + dbg);
-//
-//
-//            env->SetByteArrayRegion(jByteArray, 0, 3, cSignedCharArray);
-//            result = (jboolean) env->CallBooleanMethod(port->usbSerialHelper, UsbSerialHelper.write, jByteArray);
-//            env->DeleteLocalRef(jByteArray);
-//        }
-
+        //String dbg;
+        for (int i = 0; i < howManyBytes; ++i)
         {
-            jbyteArray jByteArray = env->NewByteArray(howManyBytes);
-            signed char cSignedCharArray[howManyBytes];
-            String dbg;
-            for (int i = 0; i < howManyBytes; ++i)
-            {
-                cSignedCharArray[i] = static_cast<const signed char*>(dataToWrite)[i];
-                dbg += String (std::bitset<8>(cSignedCharArray[i]).to_string()) + " ";
-            }
-//            DBG("*************** SerialPortOutputStream::write (): " + dbg);
-
-            env->SetByteArrayRegion(jByteArray, 0, howManyBytes, cSignedCharArray);
-            result = (jboolean) env->CallBooleanMethod(port->usbSerialHelper, UsbSerialHelper.write, jByteArray);
-            env->DeleteLocalRef(jByteArray);
+            cSignedCharArray[i] = static_cast<const signed char*>(dataToWrite)[i];
+            //dbg += String (std::bitset<8>(cSignedCharArray[i]).to_string()) + " ";
         }
+        //DBG("*************** SerialPortOutputStream::write (): " + dbg);
 
-//        {
-//            jbyteArray data = env->NewByteArray(howManyBytes);
-//            env->SetByteArrayRegion(data, 0, howManyBytes, static_cast<const signed char *>(dataToWrite));
-//            result = (jboolean) env->CallBooleanMethod(port->usbSerialHelper, UsbSerialHelper.write, data);
-//            env->DeleteLocalRef(data);
-//        }
-
-
-//
-//        //create a new jbyteArray of size howManyBytes
-//        jbyteArray data = env->NewByteArray (howManyBytes);
-//
-//        //get a pointer to the elements, so we can set them
-//        jbyte* jdata = env->GetByteArrayElements (data, nullptr);
-//
-//        //copy the contents of dataToWrite into jdata
-//        String dbg;
-//        for (int i = 0; i < howManyBytes; ++i)
-//        {
-//            auto byte = *static_cast<const unsigned char *>(dataToWrite);
-//            jdata[i] = byte;
-//            dbg += String(jdata[i]) + " ";
-//        }
-//        DBG("*************** SerialPortOutputStream::write(): " + dbg);
-//        result = (jboolean)  env->CallBooleanMethod (port->usbSerialHelper, UsbSerialHelper.write, data);
-//
-//        //delete data (hopefully it was processed by usbSerialHelper at this point, otherwise this should be at some later point, maybe when we get a response)
-////        env->DeleteLocalRef (data);
-//
-//        auto testByte = (const unsigned char) jdata[0];
-//        result = (jboolean)  env->CallBooleanMethod (port->usbSerialHelper, UsbSerialHelper.writeSingleChar, testByte);
+        env->SetByteArrayRegion(jByteArray, 0, howManyBytes, cSignedCharArray);
+        result = (jboolean) env->CallBooleanMethod(port->usbSerialHelper, UsbSerialHelper.write, jByteArray);
+        env->DeleteLocalRef(jByteArray);
     } catch (const std::exception& e) {
         DBG("********************* EXCEPTION IN SerialPortOutputStream::write()" + String(e.what()));
         return false;
