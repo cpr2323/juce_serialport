@@ -40,6 +40,18 @@ E.g., for getSerialPortPaths which returns a string, you call it with env->CallO
 */
 
 #define JNI_CLASS_MEMBERS(METHOD, STATICMETHOD, FIELD, STATICFIELD, CALLBACK) \
+    STATICFIELD (STOPBITS_1, "STOPBITS_1", "I") \
+    STATICFIELD (STOPBITS_1_5, "STOPBITS_1_5", "I") \
+    STATICFIELD (STOPBITS_2, "STOPBITS_2", "I") \
+    STATICFIELD (PARITY_NONE, "PARITY_NONE", "I") \
+    STATICFIELD (PARITY_ODD, "PARITY_ODD", "I") \
+    STATICFIELD (PARITY_EVEN, "PARITY_EVEN", "I") \
+    STATICFIELD (PARITY_MARK, "PARITY_MARK", "I") \
+    STATICFIELD (PARITY_SPACE, "PARITY_SPACE", "I")
+    DECLARE_JNI_CLASS_WITH_MIN_SDK (UsbSerialPort, "com/hoho/android/usbserial/driver/UsbSerialPort", 23)
+#undef JNI_CLASS_MEMBERS
+
+#define JNI_CLASS_MEMBERS(METHOD, STATICMETHOD, FIELD, STATICFIELD, CALLBACK) \
     FIELD (baudRate, "baudRate", "I") \
     FIELD (dataBits, "dataBits", "I") \
     FIELD (stopBits, "stopBits", "I") \
@@ -125,22 +137,54 @@ bool SerialPort::open(const String & newPortPath)
 
 void SerialPort::cancel ()
 {
-    DBG("SerialPort::cancel ()");
 }
 
 bool SerialPort::setConfig(const SerialPortConfig & config)
 {
-    if (true)
-        return true;
+    //flow control isn't supported/used by UsbSerialPort
+    if (config.flowcontrol != SerialPortConfig::FLOWCONTROL_NONE)
+        return false;
 
     auto env = getEnv();
-    return env->CallBooleanMethod(usbSerialHelper, UsbSerialHelper.setParameters, config.bps, config.databits, config.stopbits, config.parity);
+    auto stopBits { -1 };
+    switch (config.stopbits){
+        case SerialPortConfig::SerialPortStopBits::STOPBITS_1:
+            stopBits = (jint) env->GetStaticIntField(UsbSerialPort, UsbSerialPort.STOPBITS_1);
+            break;
+        case SerialPortConfig::SerialPortStopBits::STOPBITS_1ANDHALF:
+            stopBits = (jint) env->GetStaticIntField(UsbSerialPort, UsbSerialPort.STOPBITS_1_5);
+            break;
+        case SerialPortConfig::SerialPortStopBits::STOPBITS_2:
+            stopBits = (jint) env->GetStaticIntField(UsbSerialPort, UsbSerialPort.STOPBITS_2);
+            break;
+        default:
+            jassertfalse;
+            return false;
+    }
 
-//    return config.bps == 115200
-//        && config.databits == 8
-//        && config.stopbits == SerialPortConfig::STOPBITS_1
-//        && config.parity == SerialPortConfig::SERIALPORT_PARITY_NONE
-//        && config.flowcontrol == SerialPortConfig::FLOWCONTROL_NONE;
+    auto parity { -1 };
+    switch (config.parity){
+        case SerialPortConfig::SerialPortParity::SERIALPORT_PARITY_NONE:
+            parity = (jint) env->GetStaticIntField(UsbSerialPort, UsbSerialPort.PARITY_NONE);
+            break;
+        case SerialPortConfig::SerialPortParity::SERIALPORT_PARITY_ODD:
+            parity = (jint) env->GetStaticIntField(UsbSerialPort, UsbSerialPort.PARITY_ODD);
+            break;
+        case SerialPortConfig::SerialPortParity::SERIALPORT_PARITY_EVEN:
+            parity = (jint) env->GetStaticIntField(UsbSerialPort, UsbSerialPort.PARITY_EVEN);
+            break;
+        case SerialPortConfig::SerialPortParity::SERIALPORT_PARITY_SPACE:
+            parity = (jint) env->GetStaticIntField(UsbSerialPort, UsbSerialPort.PARITY_SPACE);
+            break;
+        case SerialPortConfig::SerialPortParity::SERIALPORT_PARITY_MARK:
+            parity = (jint) env->GetStaticIntField(UsbSerialPort, UsbSerialPort.PARITY_MARK);
+            break;
+        default:
+            jassertfalse;
+            return false;
+    }
+
+    return env->CallBooleanMethod(usbSerialHelper, UsbSerialHelper.setParameters, config.bps, config.databits, stopBits, parity);
 }
 
 bool SerialPort::getConfig(SerialPortConfig & config)
@@ -148,34 +192,41 @@ bool SerialPort::getConfig(SerialPortConfig & config)
     if (! portHandle)
         return false;
 
-    if (false)
-    {
-        //this is what is hardcoded in UsbSerialHelper.java
-        //public void setParameters(int baudRate, int dataBits, int stopBits, int parity) throws IOException;
-        //usbSerialPort.setParameters(baudRate, 8, UsbSerialPort.STOPBITS_1, UsbSerialPort.PARITY_NONE);
-        auto env = getEnv();
-        const auto baudRate { (jint) env->GetIntField(usbSerialHelper, UsbSerialHelper.baudRate) };
-        const auto dataBits { (jint) env->GetIntField(usbSerialHelper, UsbSerialHelper.dataBits) };
-        const auto stopBits { (jint) env->GetIntField(usbSerialHelper, UsbSerialHelper.stopBits) };
-        const auto parity { (jint) env->GetIntField(usbSerialHelper, UsbSerialHelper.parity) };
-        DBG("********************************* BAUDRATE: " + String(baudRate) + " dataBits: " + String(dataBits) + " stopBits: " + String(stopBits) + " parity: " + String(parity));
+    auto env = getEnv();
 
-        config.bps = baudRate;
-        config.databits = dataBits;
-        //this will need some proper conversion
-        config.stopbits = (SerialPortConfig::SerialPortStopBits) stopBits;
-        config.parity = (SerialPortConfig::SerialPortParity) parity;
-        config.flowcontrol = SerialPortConfig::FLOWCONTROL_NONE;
-    }
+    //set the integer/easy values
+    const auto baudRate { (jint) env->GetIntField(usbSerialHelper, UsbSerialHelper.baudRate) };
+    const auto dataBits { (jint) env->GetIntField(usbSerialHelper, UsbSerialHelper.dataBits) };
+    config.bps = baudRate;
+    config.databits = dataBits;
+    config.flowcontrol = SerialPortConfig::FLOWCONTROL_NONE;
+
+    //convert the enum values
+    const auto stopBits { (jint) env->GetIntField(usbSerialHelper, UsbSerialHelper.stopBits) };
+    if (stopBits == (jint) env->GetStaticIntField(UsbSerialPort, UsbSerialPort.STOPBITS_1))
+        config.stopbits = SerialPortConfig::SerialPortStopBits::STOPBITS_1;
+    else if (stopBits == (jint) env->GetStaticIntField(UsbSerialPort, UsbSerialPort.STOPBITS_1_5))
+        config.stopbits = SerialPortConfig::SerialPortStopBits::STOPBITS_1ANDHALF;
+    else if (stopBits == (jint) env->GetStaticIntField(UsbSerialPort, UsbSerialPort.STOPBITS_2))
+        config.stopbits = SerialPortConfig::SerialPortStopBits::STOPBITS_2;
     else
-    {
-        config.bps = 115200;
-        config.databits = 8;
-        config.stopbits = SerialPortConfig::STOPBITS_1;
-        config.parity = SerialPortConfig::SERIALPORT_PARITY_NONE;
-        config.flowcontrol = SerialPortConfig::FLOWCONTROL_NONE;
-    }
+        return false;
 
+    const auto parity { (jint) env->GetIntField(usbSerialHelper, UsbSerialHelper.parity) };
+    if (parity == (jint) env->GetStaticIntField(UsbSerialPort, UsbSerialPort.PARITY_NONE))
+        config.parity = SerialPortConfig::SerialPortParity::SERIALPORT_PARITY_NONE;
+    else if (parity == (jint) env->GetStaticIntField(UsbSerialPort, UsbSerialPort.PARITY_ODD))
+        config.parity = SerialPortConfig::SerialPortParity::SERIALPORT_PARITY_ODD;
+    else if (parity == (jint) env->GetStaticIntField(UsbSerialPort, UsbSerialPort.PARITY_EVEN))
+        config.parity = SerialPortConfig::SerialPortParity::SERIALPORT_PARITY_EVEN;
+    else if (parity == (jint) env->GetStaticIntField(UsbSerialPort, UsbSerialPort.PARITY_SPACE))
+        config.parity = SerialPortConfig::SerialPortParity::SERIALPORT_PARITY_SPACE;
+    else if (parity == (jint) env->GetStaticIntField(UsbSerialPort, UsbSerialPort.PARITY_MARK))
+        config.parity = SerialPortConfig::SerialPortParity::SERIALPORT_PARITY_MARK;
+    else
+        return false;
+
+    //DBG("********************************* SerialPort::getConfig() baudrate: " + String(baudRate) + " dataBits: " + String(dataBits) + " stopBits: " + String(stopBits) + " parity: " + String(parity));
     return true;
 }
 
@@ -186,39 +237,39 @@ void SerialPortInputStream::run()
 {
     try
     {
-    while (port && port->portDescriptor != -1 && ! threadShouldExit())
-    {
-        auto env = getEnv();
-        jbyteArray result = env->NewByteArray (8192);
-        const int bytesRead = (jint) env->CallIntMethod (port->usbSerialHelper, UsbSerialHelper.read, result);
-        if (bytesRead > 0)
+        while (port && port->portDescriptor != -1 && ! threadShouldExit())
         {
-            jbyte* jbuffer = env->GetByteArrayElements (result, nullptr);
+            auto env = getEnv();
+            jbyteArray result = env->NewByteArray (8192);
+            const int bytesRead = (jint) env->CallIntMethod (port->usbSerialHelper, UsbSerialHelper.read, result);
+            if (bytesRead > 0)
             {
-                const ScopedLock lock(bufferCriticalSection);
-                buffer.ensureSize(bufferedbytes + bytesRead);
-
-                //String dbg;
-                for (int i = 0; i < bytesRead; ++i)
+                jbyte* jbuffer = env->GetByteArrayElements (result, nullptr);
                 {
-                    buffer[bufferedbytes++] = jbuffer[i];
-                    //dbg += String (std::bitset<8>(static_cast<char>(buffer[bufferedbytes])).to_string()) + " ";
+                    const ScopedLock lock(bufferCriticalSection);
+                    buffer.ensureSize(bufferedbytes + bytesRead);
+
+                    //String dbg;
+                    for (int i = 0; i < bytesRead; ++i)
+                    {
+                        buffer[bufferedbytes++] = jbuffer[i];
+                        //dbg += String (std::bitset<8>(static_cast<char>(buffer[bufferedbytes])).to_string()) + " ";
+                    }
+                    //DBG("*************** SerialPortInputStream::run(): " + dbg);
                 }
-                //DBG("*************** SerialPortInputStream::run(): " + dbg);
+                env->ReleaseByteArrayElements(result, jbuffer, 0);
+
+                if (notify == NOTIFY_ALWAYS)
+                    sendChangeMessage();
             }
-            env->ReleaseByteArrayElements(result, jbuffer, 0);
+            else if (bytesRead == -1)
+            {
+                port->close ();
+                break;
+            }
 
-            if (notify == NOTIFY_ALWAYS)
-                sendChangeMessage();
+            env->DeleteLocalRef(result);
         }
-        else if (bytesRead == -1)
-        {
-            port->close ();
-            break;
-        }
-
-        env->DeleteLocalRef(result);
-    }
     } catch (const std::exception& e) {
         DBG("********************* EXCEPTION IN SerialPortInputStream::run()" + String(e.what()));
     }

@@ -76,12 +76,13 @@ class JUCE_API SerialPortConfig
 public:
 	SerialPortConfig(){};
 	~SerialPortConfig(){};
+
 	enum SerialPortStopBits{STOPBITS_1, STOPBITS_1ANDHALF, STOPBITS_2};
 	enum SerialPortFlowControl{FLOWCONTROL_NONE, FLOWCONTROL_HARDWARE, FLOWCONTROL_XONXOFF};
 	enum SerialPortParity{SERIALPORT_PARITY_NONE, SERIALPORT_PARITY_ODD, SERIALPORT_PARITY_EVEN, SERIALPORT_PARITY_SPACE, SERIALPORT_PARITY_MARK};
-	SerialPortConfig(uint32_t bps, uint32_t databits, SerialPortParity parity, SerialPortStopBits stopbits, SerialPortFlowControl flowcontrol)
-		:bps(bps), databits(databits), parity(parity), stopbits(stopbits), flowcontrol(flowcontrol)
-	{}
+
+	SerialPortConfig(uint32_t bps, uint32_t databits, SerialPortParity parity, SerialPortStopBits stopbits, SerialPortFlowControl flowcontrol) :
+        bps(bps), databits(databits), parity(parity), stopbits(stopbits), flowcontrol(flowcontrol) {}
 	uint32_t bps;
 	uint32_t databits;
 	SerialPortParity parity;

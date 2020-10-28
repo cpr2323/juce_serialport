@@ -126,22 +126,15 @@ public class UsbSerialHelper implements SerialInputOutputManager.Listener {
 
         try {
             usbSerialPort.open(usbConnection);
-
-            //these should be set in setConfig, try to remove this to see
-            setParameters(115200, 8, UsbSerialPort.STOPBITS_1, UsbSerialPort.PARITY_NONE);
-//            usbSerialPort.setParameters(115200, 8, UsbSerialPort.STOPBITS_1, UsbSerialPort.PARITY_NONE);
-
             usbIoManager = new SerialInputOutputManager(usbSerialPort, this);
             Executors.newSingleThreadExecutor().submit(usbIoManager);
-
             connected = true;
+            return true;
         } catch (Exception e) {
             e.printStackTrace();
             disconnect();
             return false;
         }
-
-        return true;
     }
 
     public boolean setParameters(int baudRateIn, int dataBitsIn, int stopBitsIn, int parityIn) {
@@ -151,6 +144,7 @@ public class UsbSerialHelper implements SerialInputOutputManager.Listener {
             dataBits = dataBitsIn;
             stopBits = stopBitsIn;
             parity = parityIn;
+//            DBG("********************************* UsbSerialHelper#setParameters() baudrate: " + baudRate + " dataBits: " + dataBits + " stopBits: " + stopBits + " parity: " + parity, context);
             return true;
         } catch (IOException e) {
             e.printStackTrace();
@@ -188,12 +182,10 @@ public class UsbSerialHelper implements SerialInputOutputManager.Listener {
             return false;
         }
 
-//        StringBuilder dbg = new StringBuilder("*************** UsbSerialHelper#write ():");
-//        for (byte b1: data) {
-//            String s1 = String.format("%8s", Integer.toBinaryString(b1 & 0xFF)).replace(' ', '0');
-//            dbg.append(s1 + " ");
-//        }
-//        Log.d("UsbSerialHelper#write", dbg.toString());
+        //StringBuilder dbg = new StringBuilder("*************** UsbSerialHelper#write ():");
+        //for (byte b1: data)
+        //    dbg.append(String.format("%8s", Integer.toBinaryString(b1 & 0xFF)).replace(' ', '0') + " ");
+        //Log.d("UsbSerialHelper#write", dbg.toString());
 
         try {
             usbSerialPort.write(data, WRITE_WAIT_MILLIS);
@@ -213,18 +205,16 @@ public class UsbSerialHelper implements SerialInputOutputManager.Listener {
         });
     }
 
-    //TODO: should this be coalesced in another thread, in case we get another call to this callback while we're copying bytes?
+    //TODO: should this be coalesced in another thread, maybe using the mainLooper, in case we get another call to this callback while we're copying bytes?
     @Override
     public void onNewData(byte[] data) {
         try {
             readDequeLock.lock();
 
-//            StringBuilder dbg = new StringBuilder("*************** UsbSerialHelper#onNewData ():");
-//            for (byte b1 : data) {
-//                String s1 = String.format("%8s", Integer.toBinaryString(b1 & 0xFF)).replace(' ', '0');
-//                dbg.append(s1 + " ");
-//            }
-//            Log.d("UsbSerialHelper#onNewDa", dbg.toString());
+            //StringBuilder dbg = new StringBuilder("*************** UsbSerialHelper#onNewData ():");
+            //for (byte b1 : data)
+            //    dbg.append(String.format("%8s", Integer.toBinaryString(b1 & 0xFF)).replace(' ', '0') + " ");
+            //Log.d("UsbSerialHelper#onNewDa", dbg.toString());
 
             for (byte b : data)
                 readDeque.add(b);
@@ -236,10 +226,9 @@ public class UsbSerialHelper implements SerialInputOutputManager.Listener {
         }
     }
 
-    //here we get a buffer that we need to fill (need to check that this is a reference)
     public int read(byte[] buffer) {
         if (! connected) {
-            DBG("not connected", context);
+            //DBG("not connected", context);
             return 0;
         }
 
@@ -250,14 +239,12 @@ public class UsbSerialHelper implements SerialInputOutputManager.Listener {
             int bufferedSize = readDeque.size();
 
             if (bufferedSize > 0) {
-                StringBuilder dbg = new StringBuilder("*************** UsbSerialHelper#read ():");
+                //StringBuilder dbg = new StringBuilder("*************** UsbSerialHelper#read ():");
                 for (int i = 0; i < bufferedSize; ++i) {
                     buffer[i] = readDeque.pop().byteValue();
-
-                    String s1 = String.format("%8s", Integer.toBinaryString(buffer[i] & 0xFF)).replace(' ', '0');
-                    dbg.append(s1 + " ");
+                    //dbg.append(String.format("%8s", Integer.toBinaryString(buffer[i] & 0xFF)).replace(' ', '0') + " ");
                 }
-                Log.d("UsbSerialHelper#read", dbg.toString());
+                //Log.d("UsbSerialHelper#read", dbg.toString());
 
                 ret = bufferedSize;
             }
