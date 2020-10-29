@@ -163,13 +163,12 @@ bool SerialPort::open(const String & newPortPath)
 
 void SerialPort::cancel ()
 {
-    if (!canceled)
+    if (! canceled)
     {
         canceled = true;
 //        if (portHandle != nullptr)
 //            const auto result = CancelIoEx (portHandle, nullptr);
     }
-
 }
 bool SerialPort::setConfig(const SerialPortConfig & config)
 {

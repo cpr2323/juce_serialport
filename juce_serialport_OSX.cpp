@@ -301,8 +301,8 @@ void SerialPortOutputStream::run()
 		if(bufferedbytes)
 		{
 			bufferCriticalSection.enter();
-			int bytestowrite=bufferedbytes>writeBufferSize?writeBufferSize:bufferedbytes;
-			memcpy(tempbuffer, buffer.getData(), bytestowrite);
+			int bytestowrite = bufferedbytes > writeBufferSize ? writeBufferSize : bufferedbytes;
+			memcpy (tempbuffer, buffer.getData(), bytestowrite);
 			bufferCriticalSection.exit();
 			const auto byteswritten = ::write(port->portDescriptor, tempbuffer, bytestowrite);
 			if(byteswritten>0)
