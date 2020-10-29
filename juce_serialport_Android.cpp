@@ -63,7 +63,7 @@ E.g., for getSerialPortPaths which returns a string, you call it with env->CallO
     METHOD (disconnect, "disconnect", "()V") \
     METHOD (write, "write", "([B)Z") \
     METHOD (read, "read", "([B)I")
-    DECLARE_JNI_CLASS_WITH_MIN_SDK (UsbSerialHelper, "com/hoho/android/usbserial/UsbSerialHelper", 23)
+    DECLARE_JNI_CLASS_WITH_MIN_SDK (UsbSerialHelper, "com/artiphon/juce_serial/UsbSerialHelper", 23)
 #undef JNI_CLASS_MEMBERS
 
 StringPairArray SerialPort::getSerialPortPaths()
