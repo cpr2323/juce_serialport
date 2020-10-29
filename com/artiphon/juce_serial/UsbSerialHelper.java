@@ -11,7 +11,6 @@ import android.os.Handler;
 import android.os.Looper;
 import android.util.Log;
 
-import com.artiphon.orba.BuildConfig;
 import com.hoho.android.usbserial.driver.CdcAcmSerialDriver;
 import com.hoho.android.usbserial.driver.UsbSerialPort;
 import com.hoho.android.usbserial.util.SerialInputOutputManager;
@@ -29,7 +28,7 @@ public class UsbSerialHelper implements SerialInputOutputManager.Listener {
 
     private enum UsbPermission { Unknown, Requested, Granted, Denied };
 
-    private static final String INTENT_ACTION_GRANT_USB = BuildConfig.APPLICATION_ID + ".GRANT_USB";
+    private static final String INTENT_ACTION_GRANT_USB = "MY_APP.GRANT_USB";
     private static final int WRITE_WAIT_MILLIS = 2000;
     private static final int READ_WAIT_MILLIS = 2000;
 
