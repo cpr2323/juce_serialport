@@ -1,10 +1,3 @@
-//mac_SerialPort.cpp
-//Serial Port classes in a Juce stylee, by graffiti
-//see SerialPort.h for details
-//
-// Updated for current Juce API 8/1/13 Marc Lindahl
-//
-
 #include "../JuceLibraryCode/JuceHeader.h"
 
 #if JUCE_IOS
