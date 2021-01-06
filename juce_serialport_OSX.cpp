@@ -26,6 +26,8 @@ using namespace juce;
 #undef Component
 #include "juce_serialport.h"
 
+#include "../../shared/Utility/DebugLog.h"
+
 StringPairArray SerialPort::getSerialPortPaths()
 {
 	StringPairArray SerialPortPaths;
@@ -89,27 +91,28 @@ bool SerialPort::open(const String & portPath)
 	this->portPath = portPath;
     struct termios options;
 	portDescriptor = ::open(portPath.getCharPointer(), O_RDWR | O_NOCTTY | O_NONBLOCK);
+    DebugLog("SerialPort::open()", "");
     if (portDescriptor == -1)
     {
-        DBG("SerialPort::open : open() failed");
+        DebugLog("SerialPort::open", "SerialPort::open : open() failed");
         return false;
     }
     // don't allow multiple opens
     if (ioctl(portDescriptor, TIOCEXCL) == -1)
     {
-        DBG("SerialPort::open : ioctl error, non critical");
+        DebugLog("SerialPort::open", "SerialPort::open : ioctl error, non critical");
     }
     // we want blocking io actually
 	if (fcntl(portDescriptor, F_SETFL, 0) == -1)
     {
-        DBG("SerialPort::open : fcntl error");
+        DebugLog("SerialPort::open", "SerialPort::open : fcntl error");
 		close();
         return false;
     }
 	// Get the current options
     if (tcgetattr(portDescriptor, &options) == -1)
     {
-        DBG("SerialPort::open : can't get port settings to set timeouts");
+        DebugLog("SerialPort::open", "SerialPort::open : can't get port settings to set timeouts");
 		close();
         return false;
     }
@@ -119,7 +122,7 @@ bool SerialPort::open(const String & portPath)
     options.c_cc[VTIME] = 5;
 	if (tcsetattr(portDescriptor, TCSANOW, &options) == -1)
     {
-        DBG("SerialPort::open : can't set port settings (timeouts)");
+        DebugLog("SerialPort::open", "SerialPort::open : can't set port settings (timeouts)");
 		close();
         return false;
     }
@@ -253,7 +256,9 @@ void SerialPortInputStream::run()
 	while(port && (port->portDescriptor!=-1) && !threadShouldExit())
 	{
 		unsigned char c;
+        DebugLog("SerialPortInputStream::run()", "before ::read");
 		const auto bytesread = ::read(port->portDescriptor, &c, 1);
+        DebugLog("SerialPortInputStream::run()", "after ::read");
 		if(bytesread==1)
 		{
 			const ScopedLock l(bufferCriticalSection);
@@ -263,13 +268,19 @@ void SerialPortInputStream::run()
 			if(notify==NOTIFY_ALWAYS||((notify==NOTIFY_ON_CHAR) && (c == notifyChar)))
 					sendChangeMessage();
 		}
+        else if (bytesread == 0)
+        {
+            DebugLog("SerialPortInputStream::run()", "::read() returned 0, errno: " + String (errno));
+        }
         else if (bytesread == -1)
         {
+            DebugLog("SerialPortInputStream::run()", "::read() returned -1, errno: " + String (errno));
             port->close ();
             break;
         }
 	}
 }
+
 int SerialPortInputStream::read(void *destBuffer, int maxBytesToRead)
 {
     if (port && port->portDescriptor != -1)
@@ -311,6 +322,12 @@ void SerialPortOutputStream::run()
 				buffer.removeSection(0, byteswritten);
 				bufferedbytes-=byteswritten;
 			}
+            else
+            {
+                DebugLog("SerialPortOutputStream::run", "::write() couldn't write anything, errno: " + String (errno));
+                port->close ();
+                break;
+            }
 		}
 	}
 }
