@@ -91,25 +91,25 @@ bool SerialPort::open(const String & portPath)
 	portDescriptor = ::open(portPath.getCharPointer(), O_RDWR | O_NOCTTY | O_NONBLOCK);
     if (portDescriptor == -1)
     {
-        DBG ("SerialPort::open: SerialPort::open : open() failed");
+        DBG ("SerialPort::open : open() failed");
         return false;
     }
     // don't allow multiple opens
     if (ioctl(portDescriptor, TIOCEXCL) == -1)
     {
-        DBG ("SerialPort::open SerialPort::open : ioctl error, non critical");
+        DBG (" SerialPort::open : ioctl error, non critical");
     }
     // we want blocking io actually
 	if (fcntl(portDescriptor, F_SETFL, 0) == -1)
     {
-        DBG ("SerialPort::open SerialPort::open : fcntl error");
+        DBG ("SerialPort::open : fcntl error");
 		close();
         return false;
     }
 	// Get the current options
     if (tcgetattr(portDescriptor, &options) == -1)
     {
-        DBG ("SerialPort::open SerialPort::open : can't get port settings to set timeouts");
+        DBG ("SerialPort::open : can't get port settings to set timeouts");
 		close();
         return false;
     }
@@ -119,7 +119,7 @@ bool SerialPort::open(const String & portPath)
     options.c_cc[VTIME] = 5;
 	if (tcsetattr(portDescriptor, TCSANOW, &options) == -1)
     {
-        DBG ("SerialPort::open SerialPort::open : can't set port settings (timeouts)");
+        DBG ("SerialPort::open : can't set port settings (timeouts)");
 		close();
         return false;
     }
