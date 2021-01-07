@@ -26,8 +26,6 @@ using namespace juce;
 #undef Component
 #include "juce_serialport.h"
 
-#include "../../shared/Utility/DebugLog.h"
-
 StringPairArray SerialPort::getSerialPortPaths()
 {
 	StringPairArray SerialPortPaths;
@@ -91,28 +89,27 @@ bool SerialPort::open(const String & portPath)
 	this->portPath = portPath;
     struct termios options;
 	portDescriptor = ::open(portPath.getCharPointer(), O_RDWR | O_NOCTTY | O_NONBLOCK);
-    DebugLog("SerialPort::open()", "");
     if (portDescriptor == -1)
     {
-        DebugLog("SerialPort::open", "SerialPort::open : open() failed");
+        DBG ("SerialPort::open: SerialPort::open : open() failed");
         return false;
     }
     // don't allow multiple opens
     if (ioctl(portDescriptor, TIOCEXCL) == -1)
     {
-        DebugLog("SerialPort::open", "SerialPort::open : ioctl error, non critical");
+        DBG ("SerialPort::open SerialPort::open : ioctl error, non critical");
     }
     // we want blocking io actually
 	if (fcntl(portDescriptor, F_SETFL, 0) == -1)
     {
-        DebugLog("SerialPort::open", "SerialPort::open : fcntl error");
+        DBG ("SerialPort::open SerialPort::open : fcntl error");
 		close();
         return false;
     }
 	// Get the current options
     if (tcgetattr(portDescriptor, &options) == -1)
     {
-        DebugLog("SerialPort::open", "SerialPort::open : can't get port settings to set timeouts");
+        DBG ("SerialPort::open SerialPort::open : can't get port settings to set timeouts");
 		close();
         return false;
     }
@@ -122,7 +119,7 @@ bool SerialPort::open(const String & portPath)
     options.c_cc[VTIME] = 5;
 	if (tcsetattr(portDescriptor, TCSANOW, &options) == -1)
     {
-        DebugLog("SerialPort::open", "SerialPort::open : can't set port settings (timeouts)");
+        DBG ("SerialPort::open SerialPort::open : can't set port settings (timeouts)");
 		close();
         return false;
     }
@@ -173,9 +170,9 @@ bool SerialPort::setConfig(const SerialPortConfig & config)
 		break;
 	}
 	//stopbits
-	if(config.stopbits==SerialPortConfig::STOPBITS_1ANDHALF)
+	if (config.stopbits==SerialPortConfig::STOPBITS_1ANDHALF)
 	{
-		DBG("SerialPort::setConfig : STOPBITS_1ANDHALF not supported on Mac");
+		DBG ("SerialPort::setConfig : STOPBITS_1ANDHALF not supported on Mac");
 		return false;//not supported
 	}
 	if(config.stopbits==SerialPortConfig::STOPBITS_2)
@@ -203,7 +200,7 @@ bool SerialPort::setConfig(const SerialPortConfig & config)
     
     int new_baud = static_cast<int> (config.bps);
     if (ioctl (portDescriptor, _IOW('T', 2, speed_t), &new_baud, 1) == -1) {
-        DBG("SerialPort::setConfig : can't set baud rate");
+        DBG ("SerialPort::setConfig : can't set baud rate");
         return false;
     }
     
@@ -271,7 +268,7 @@ void SerialPortInputStream::run()
         }
         else if (bytesread < 1)
         {
-            DebugLog ("SerialPortInputStream::run()", "::read() returned " + String(bytesread) + ", errno: " + String (errno));
+            DBG ("SerialPortInputStream::run() ::read() returned " + String(bytesread) + ", errno: " + String (errno));
             port->close ();
             break;
         }
@@ -325,7 +322,7 @@ void SerialPortOutputStream::run()
 			}
             else
             {
-                DebugLog("SerialPortOutputStream::run", "::write() couldn't write anything, errno: " + String (errno));
+                DBG ("SerialPortOutputStream::run ::write() couldn't write anything, errno: " + String (errno));
                 port->close ();
                 break;
             }
