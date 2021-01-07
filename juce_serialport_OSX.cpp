@@ -253,43 +253,44 @@ void SerialPortInputStream::cancel ()
 
 void SerialPortInputStream::run()
 {
-	while(port && (port->portDescriptor!=-1) && !threadShouldExit())
-	{
-		unsigned char c;
-        DebugLog("SerialPortInputStream::run()", "before ::read");
-		const auto bytesread = ::read(port->portDescriptor, &c, 1);
-        DebugLog("SerialPortInputStream::run()", "after ::read");
-		if(bytesread==1)
-		{
-			const ScopedLock l(bufferCriticalSection);
-			buffer.ensureSize(bufferedbytes+1);
-			buffer[bufferedbytes]=c;
-			bufferedbytes++;
-			if(notify==NOTIFY_ALWAYS||((notify==NOTIFY_ON_CHAR) && (c == notifyChar)))
-					sendChangeMessage();
-		}
-        else if (bytesread == 0)
+    while (port != nullptr && port->portDescriptor != -1 && ! threadShouldExit ())
+    {
+        unsigned char c;
+        //this call will block until we read 1 byte, or ::read() returns an error, caught below
+        const auto bytesread = ::read (port->portDescriptor, &c, 1);
+        if (bytesread == 1)
         {
-            DebugLog("SerialPortInputStream::run()", "::read() returned 0, errno: " + String (errno));
+            const ScopedLock l (bufferCriticalSection);
+
+            buffer.ensureSize (bufferedbytes + 1);
+            buffer[bufferedbytes] = c;
+            ++bufferedbytes;
+
+            if (notify == NOTIFY_ALWAYS || (notify == NOTIFY_ON_CHAR && c == notifyChar))
+                sendChangeMessage();
         }
-        else if (bytesread == -1)
+        else if (bytesread < 1)
         {
-            DebugLog("SerialPortInputStream::run()", "::read() returned -1, errno: " + String (errno));
+            DebugLog ("SerialPortInputStream::run()", "::read() returned " + String(bytesread) + ", errno: " + String (errno));
             port->close ();
             break;
         }
-	}
+    }
 }
 
 int SerialPortInputStream::read(void *destBuffer, int maxBytesToRead)
 {
-    if (port && port->portDescriptor != -1)
+    if (port != nullptr && port->portDescriptor != -1)
     {
-        const ScopedLock l(bufferCriticalSection);
-        if(maxBytesToRead>bufferedbytes)maxBytesToRead=bufferedbytes;
-        memcpy(destBuffer, buffer.getData(), maxBytesToRead);
-        buffer.removeSection(0,maxBytesToRead);
-        bufferedbytes-=maxBytesToRead;
+        const ScopedLock l (bufferCriticalSection);
+
+        if (maxBytesToRead > bufferedbytes)
+            maxBytesToRead = bufferedbytes;
+
+        memcpy (destBuffer, buffer.getData(), maxBytesToRead);
+        buffer.removeSection (0,maxBytesToRead);
+        bufferedbytes -= maxBytesToRead;
+
         return maxBytesToRead;
     }
     else
