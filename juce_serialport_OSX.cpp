@@ -266,7 +266,7 @@ void SerialPortInputStream::run()
             if (notify == NOTIFY_ALWAYS || (notify == NOTIFY_ON_CHAR && c == notifyChar))
                 sendChangeMessage();
         }
-        else if (bytesread < 1)
+        else if (bytesread == -1)
         {
             DBG ("SerialPortInputStream::run() ::read() returned " + String(bytesread) + ", errno: " + String (errno));
             port->close ();
