@@ -97,7 +97,7 @@ bool SerialPort::open(const String & portPath)
     // don't allow multiple opens
     if (ioctl(portDescriptor, TIOCEXCL) == -1)
     {
-        DBG (" SerialPort::open : ioctl error, non critical");
+        DBG ("SerialPort::open : ioctl error, non critical");
     }
     // we want blocking io actually
 	if (fcntl(portDescriptor, F_SETFL, 0) == -1)
@@ -302,33 +302,34 @@ void SerialPortOutputStream::cancel ()
 
 void SerialPortOutputStream::run()
 {
-	unsigned char tempbuffer[writeBufferSize];
-	while(port && (port->portDescriptor!=-1) && !threadShouldExit())
-	{
-		if(!bufferedbytes)
-			triggerWrite.wait(100);
-		if(bufferedbytes)
-		{
-			bufferCriticalSection.enter();
-			int bytestowrite = bufferedbytes > writeBufferSize ? writeBufferSize : bufferedbytes;
-			memcpy (tempbuffer, buffer.getData(), bytestowrite);
-			bufferCriticalSection.exit();
-			const auto byteswritten = ::write(port->portDescriptor, tempbuffer, bytestowrite);
-			if(byteswritten>0)
-			{
-				const ScopedLock l(bufferCriticalSection);
-				buffer.removeSection(0, byteswritten);
-				bufferedbytes-=byteswritten;
-			}
+    unsigned char tempbuffer[writeBufferSize];
+    while(port && (port->portDescriptor!=-1) && !threadShouldExit())
+    {
+        if (! bufferedbytes)
+            triggerWrite.wait(100);
+        if (bufferedbytes)
+        {
+            bufferCriticalSection.enter();
+            int bytestowrite = bufferedbytes > writeBufferSize ? writeBufferSize : bufferedbytes;
+            memcpy (tempbuffer, buffer.getData(), bytestowrite);
+            bufferCriticalSection.exit();
+            const auto byteswritten = ::write(port->portDescriptor, tempbuffer, bytestowrite);
+            if (byteswritten>0)
+            {
+                const ScopedLock l(bufferCriticalSection);
+                buffer.removeSection(0, byteswritten);
+                bufferedbytes-=byteswritten;
+            }
             else
             {
                 DBG ("SerialPortOutputStream::run ::write() couldn't write anything, errno: " + String (errno));
                 port->close ();
                 break;
             }
-		}
-	}
+        }
+    }
 }
+
 bool SerialPortOutputStream::write(const void *dataToWrite, size_t howManyBytes)
 {
 	bufferCriticalSection.enter();
