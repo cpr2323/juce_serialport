@@ -91,25 +91,25 @@ bool SerialPort::open(const String & portPath)
 	portDescriptor = ::open(portPath.getCharPointer(), O_RDWR | O_NOCTTY | O_NONBLOCK);
     if (portDescriptor == -1)
     {
-        DBG("SerialPort::open : open() failed");
+        DBG ("SerialPort::open : open() failed");
         return false;
     }
     // don't allow multiple opens
     if (ioctl(portDescriptor, TIOCEXCL) == -1)
     {
-        DBG("SerialPort::open : ioctl error, non critical");
+        DBG ("SerialPort::open : ioctl error, non critical");
     }
     // we want blocking io actually
 	if (fcntl(portDescriptor, F_SETFL, 0) == -1)
     {
-        DBG("SerialPort::open : fcntl error");
+        DBG ("SerialPort::open : fcntl error");
 		close();
         return false;
     }
 	// Get the current options
     if (tcgetattr(portDescriptor, &options) == -1)
     {
-        DBG("SerialPort::open : can't get port settings to set timeouts");
+        DBG ("SerialPort::open : can't get port settings to set timeouts");
 		close();
         return false;
     }
@@ -119,7 +119,7 @@ bool SerialPort::open(const String & portPath)
     options.c_cc[VTIME] = 5;
 	if (tcsetattr(portDescriptor, TCSANOW, &options) == -1)
     {
-        DBG("SerialPort::open : can't set port settings (timeouts)");
+        DBG ("SerialPort::open : can't set port settings (timeouts)");
 		close();
         return false;
     }
@@ -170,9 +170,9 @@ bool SerialPort::setConfig(const SerialPortConfig & config)
 		break;
 	}
 	//stopbits
-	if(config.stopbits==SerialPortConfig::STOPBITS_1ANDHALF)
+	if (config.stopbits==SerialPortConfig::STOPBITS_1ANDHALF)
 	{
-		DBG("SerialPort::setConfig : STOPBITS_1ANDHALF not supported on Mac");
+		DBG ("SerialPort::setConfig : STOPBITS_1ANDHALF not supported on Mac");
 		return false;//not supported
 	}
 	if(config.stopbits==SerialPortConfig::STOPBITS_2)
@@ -200,7 +200,7 @@ bool SerialPort::setConfig(const SerialPortConfig & config)
     
     int new_baud = static_cast<int> (config.bps);
     if (ioctl (portDescriptor, _IOW('T', 2, speed_t), &new_baud, 1) == -1) {
-        DBG("SerialPort::setConfig : can't set baud rate");
+        DBG ("SerialPort::setConfig : can't set baud rate");
         return false;
     }
     
@@ -250,35 +250,44 @@ void SerialPortInputStream::cancel ()
 
 void SerialPortInputStream::run()
 {
-	while(port && (port->portDescriptor!=-1) && !threadShouldExit())
-	{
-		unsigned char c;
-		const auto bytesread = ::read(port->portDescriptor, &c, 1);
-		if(bytesread==1)
-		{
-			const ScopedLock l(bufferCriticalSection);
-			buffer.ensureSize(bufferedbytes+1);
-			buffer[bufferedbytes]=c;
-			bufferedbytes++;
-			if(notify==NOTIFY_ALWAYS||((notify==NOTIFY_ON_CHAR) && (c == notifyChar)))
-					sendChangeMessage();
-		}
-        else if (bytesread == -1)
+    while (port != nullptr && port->portDescriptor != -1 && ! threadShouldExit ())
+    {
+        unsigned char c;
+        //this call will block until we read 1 byte, or ::read() returns an error, caught below
+        const auto bytesread = ::read (port->portDescriptor, &c, 1);
+        if (bytesread == 1)
         {
+            const ScopedLock l (bufferCriticalSection);
+
+            buffer.ensureSize (bufferedbytes + 1);
+            buffer[bufferedbytes] = c;
+            ++bufferedbytes;
+
+            if (notify == NOTIFY_ALWAYS || (notify == NOTIFY_ON_CHAR && c == notifyChar))
+                sendChangeMessage();
+        }
+        else if (bytesread < 1)
+        {
+            DBG ("SerialPortInputStream::run() ::read() returned " + String(bytesread) + ", errno: " + String (errno));
             port->close ();
             break;
         }
-	}
+    }
 }
+
 int SerialPortInputStream::read(void *destBuffer, int maxBytesToRead)
 {
-    if (port && port->portDescriptor != -1)
+    if (port != nullptr && port->portDescriptor != -1)
     {
-        const ScopedLock l(bufferCriticalSection);
-        if(maxBytesToRead>bufferedbytes)maxBytesToRead=bufferedbytes;
-        memcpy(destBuffer, buffer.getData(), maxBytesToRead);
-        buffer.removeSection(0,maxBytesToRead);
-        bufferedbytes-=maxBytesToRead;
+        const ScopedLock l (bufferCriticalSection);
+
+        if (maxBytesToRead > bufferedbytes)
+            maxBytesToRead = bufferedbytes;
+
+        memcpy (destBuffer, buffer.getData(), maxBytesToRead);
+        buffer.removeSection (0,maxBytesToRead);
+        bufferedbytes -= maxBytesToRead;
+
         return maxBytesToRead;
     }
     else
@@ -293,27 +302,34 @@ void SerialPortOutputStream::cancel ()
 
 void SerialPortOutputStream::run()
 {
-	unsigned char tempbuffer[writeBufferSize];
-	while(port && (port->portDescriptor!=-1) && !threadShouldExit())
-	{
-		if(!bufferedbytes)
-			triggerWrite.wait(100);
-		if(bufferedbytes)
-		{
-			bufferCriticalSection.enter();
-			int bytestowrite = bufferedbytes > writeBufferSize ? writeBufferSize : bufferedbytes;
-			memcpy (tempbuffer, buffer.getData(), bytestowrite);
-			bufferCriticalSection.exit();
-			const auto byteswritten = ::write(port->portDescriptor, tempbuffer, bytestowrite);
-			if(byteswritten>0)
-			{
-				const ScopedLock l(bufferCriticalSection);
-				buffer.removeSection(0, byteswritten);
-				bufferedbytes-=byteswritten;
-			}
-		}
-	}
+    unsigned char tempbuffer[writeBufferSize];
+    while(port && (port->portDescriptor!=-1) && !threadShouldExit())
+    {
+        if (! bufferedbytes)
+            triggerWrite.wait(100);
+        if (bufferedbytes)
+        {
+            bufferCriticalSection.enter();
+            int bytestowrite = bufferedbytes > writeBufferSize ? writeBufferSize : bufferedbytes;
+            memcpy (tempbuffer, buffer.getData(), bytestowrite);
+            bufferCriticalSection.exit();
+            const auto byteswritten = ::write(port->portDescriptor, tempbuffer, bytestowrite);
+            if (byteswritten>0)
+            {
+                const ScopedLock l(bufferCriticalSection);
+                buffer.removeSection(0, byteswritten);
+                bufferedbytes-=byteswritten;
+            }
+            else
+            {
+                DBG ("SerialPortOutputStream::run ::write() couldn't write anything, errno: " + String (errno));
+                port->close ();
+                break;
+            }
+        }
+    }
 }
+
 bool SerialPortOutputStream::write(const void *dataToWrite, size_t howManyBytes)
 {
 	bufferCriticalSection.enter();
