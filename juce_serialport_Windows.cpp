@@ -130,7 +130,7 @@ bool SerialPort::exists()
     return portHandle ? true : false;
 }
 
-bool SerialPort::open(const String & newPortPath)
+bool SerialPort::open (const String & newPortPath)
 {
     canceled = false;
     portPath = newPortPath;
@@ -151,12 +151,12 @@ bool SerialPort::open(const String & newPortPath)
         commTimeout.WriteTotalTimeoutMultiplier = 0;
     }
     else
-        DebugLog ("GetCommTimeouts error");
+        DebugLog ("SerialPort::open", "GetCommTimeouts error");
     if (!SetCommTimeouts (portHandle, &commTimeout))
-        DebugLog ("SetCommTimeouts error");
+        DebugLog ("SerialPort::open", "SetCommTimeouts error");
 
     if (!SetCommMask (portHandle, EV_RXCHAR))
-        DebugLog ("SetCommMask error");
+        DebugLog ("SerialPort::open", "SetCommMask error");
 
     return true;
 }

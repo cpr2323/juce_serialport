@@ -126,7 +126,7 @@ bool SerialPort::open(const String & newPortPath)
         //attempt to connect to the newPortPath
         result = (jboolean) env->CallBooleanMethod (usbSerialHelper, UsbSerialHelper.connect, newPortPath.getIntValue());
     } catch (const std::exception& e) {
-        DebugLog("********************* EXCEPTION IN SerialPort::open()" + String(e.what()));
+        DebugLog ("SerialPort::open", "EXCEPTION: " + String(e.what()));
 
         portPath = "";
         portDescriptor = -1;
@@ -271,7 +271,7 @@ void SerialPortInputStream::run()
             env->DeleteLocalRef(result);
         }
     } catch (const std::exception& e) {
-        port->DebugLog("********************* EXCEPTION IN SerialPortInputStream::run()" + String(e.what()));
+        port->DebugLog ("SerialPortInputStream::run", "EXCEPTION: " + String(e.what()));
     }
 }
 
@@ -301,7 +301,7 @@ int SerialPortInputStream::read(void *destBuffer, int maxBytesToRead)
 void SerialPortOutputStream::run()
 {
     //TODO if this is not used, can we stop it from running?
-    port->DebugLog("SerialPortOutputStream::run()");
+    port->DebugLog("SerialPortOutputStream::run", "this function is called but doesn't do anything and exists immediately");
 }
 
 void SerialPortOutputStream::cancel ()
@@ -335,7 +335,7 @@ bool SerialPortOutputStream::write(const void *dataToWrite, size_t howManyBytes)
         result = (jboolean) env->CallBooleanMethod(port->usbSerialHelper, UsbSerialHelper.write, jByteArray);
         env->DeleteLocalRef(jByteArray);
     } catch (const std::exception& e) {
-        port->DebugLog("********************* EXCEPTION IN SerialPortOutputStream::write()" + String(e.what()));
+        port->DebugLog ("SerialPortOutputStream::write", "EXCEPTION: " + String(e.what()));
         return false;
     }
 
