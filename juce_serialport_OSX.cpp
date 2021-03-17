@@ -37,19 +37,19 @@ StringPairArray SerialPort::getSerialPortPaths()
 	char deviceFriendly[1024];
     if (KERN_SUCCESS != IOMasterPort(MACH_PORT_NULL, &masterPort))
     {
-        DBG("SerialPort::getSerialPortPaths : IOMasterPort failed");
+        DBG ("SerialPort::getSerialPortPaths : IOMasterPort failed");
 		return SerialPortPaths;
     }
     classesToMatch = IOServiceMatching(kIOSerialBSDServiceValue);
     if (classesToMatch == NULL)
 	{
-		DBG("SerialPort::getSerialPortPaths : IOServiceMatching failed");
+        DBG ("SerialPort::getSerialPortPaths : IOServiceMatching failed");
 		return SerialPortPaths;
 	}
 	CFDictionarySetValue(classesToMatch, CFSTR(kIOSerialBSDTypeKey), CFSTR(kIOSerialBSDAllTypes));    
 	if (KERN_SUCCESS != IOServiceGetMatchingServices(masterPort, classesToMatch, &matchingServices))
 	{
-		DBG("SerialPort::getSerialPortPaths : IOServiceGetMatchingServices failed");
+        DBG ("SerialPort::getSerialPortPaths : IOServiceGetMatchingServices failed");
 		return SerialPortPaths;
 	}
 	while ((modemService = IOIteratorNext(matchingServices)))
@@ -91,25 +91,25 @@ bool SerialPort::open(const String & portPath)
 	portDescriptor = ::open(portPath.getCharPointer(), O_RDWR | O_NOCTTY | O_NONBLOCK);
     if (portDescriptor == -1)
     {
-        DBG ("SerialPort::open : open() failed");
+        DebugLog ("SerialPort::open : open() failed");
         return false;
     }
     // don't allow multiple opens
     if (ioctl(portDescriptor, TIOCEXCL) == -1)
     {
-        DBG ("SerialPort::open : ioctl error, non critical");
+        DebugLog ("SerialPort::open : ioctl error, non critical");
     }
     // we want blocking io actually
 	if (fcntl(portDescriptor, F_SETFL, 0) == -1)
     {
-        DBG ("SerialPort::open : fcntl error");
+        DebugLog ("SerialPort::open : fcntl error");
 		close();
         return false;
     }
 	// Get the current options
     if (tcgetattr(portDescriptor, &options) == -1)
     {
-        DBG ("SerialPort::open : can't get port settings to set timeouts");
+        DebugLog ("SerialPort::open : can't get port settings to set timeouts");
 		close();
         return false;
     }
@@ -119,7 +119,7 @@ bool SerialPort::open(const String & portPath)
     options.c_cc[VTIME] = 5;
 	if (tcsetattr(portDescriptor, TCSANOW, &options) == -1)
     {
-        DBG ("SerialPort::open : can't set port settings (timeouts)");
+        DebugLog ("SerialPort::open : can't set port settings (timeouts)");
 		close();
         return false;
     }
@@ -162,7 +162,7 @@ bool SerialPort::setConfig(const SerialPortConfig & config)
 		break;
 	case SerialPortConfig::SERIALPORT_PARITY_MARK:
 	case SerialPortConfig::SERIALPORT_PARITY_SPACE:
-		DBG("SerialPort::setConfig : SERIALPORT_PARITY_MARK and SERIALPORT_PARITY_SPACE not supported on Mac");
+		DebugLog("SerialPort::setConfig : SERIALPORT_PARITY_MARK and SERIALPORT_PARITY_SPACE not supported on Mac");
 		return false;//not supported
 		break;
 	case SerialPortConfig::SERIALPORT_PARITY_NONE:
@@ -172,7 +172,7 @@ bool SerialPort::setConfig(const SerialPortConfig & config)
 	//stopbits
 	if (config.stopbits==SerialPortConfig::STOPBITS_1ANDHALF)
 	{
-		DBG ("SerialPort::setConfig : STOPBITS_1ANDHALF not supported on Mac");
+		DebugLog ("SerialPort::setConfig : STOPBITS_1ANDHALF not supported on Mac");
 		return false;//not supported
 	}
 	if(config.stopbits==SerialPortConfig::STOPBITS_2)
@@ -194,13 +194,13 @@ bool SerialPort::setConfig(const SerialPortConfig & config)
 	}
 	if (tcsetattr(portDescriptor, TCSANOW, &options) == -1)
     {
-        DBG("SerialPort::setConfig : can't set port settings");
+        DebugLog("SerialPort::setConfig : can't set port settings");
         return false;
     }
     
     int new_baud = static_cast<int> (config.bps);
     if (ioctl (portDescriptor, _IOW('T', 2, speed_t), &new_baud, 1) == -1) {
-        DBG ("SerialPort::setConfig : can't set baud rate");
+        DebugLog ("SerialPort::setConfig : can't set baud rate");
         return false;
     }
     
@@ -212,7 +212,7 @@ bool SerialPort::getConfig(SerialPortConfig & config)
 	if(-1==portDescriptor)return false;
 	if (tcgetattr(portDescriptor, &options) == -1)
     {
-        DBG("SerialPort::getConfig : cannot get port settings");
+        DebugLog("SerialPort::getConfig : cannot get port settings");
         return false;
     }
 	config.bps = ((int)cfgetispeed(&options))>((int)cfgetospeed(&options))?(int)cfgetispeed(&options):(int)cfgetospeed(&options);
@@ -268,7 +268,7 @@ void SerialPortInputStream::run()
         }
         else if (bytesread == -1)
         {
-            DBG ("SerialPortInputStream::run() ::read() returned " + String(bytesread) + ", errno: " + String (errno));
+            port->DebugLog ("SerialPortInputStream::run() ::read() returned " + String(bytesread) + ", errno: " + String (errno));
             port->close ();
             break;
         }
@@ -322,7 +322,7 @@ void SerialPortOutputStream::run()
             }
             else
             {
-                DBG ("SerialPortOutputStream::run ::write() couldn't write anything, errno: " + String (errno));
+                port->DebugLog ("SerialPortOutputStream::run ::write() couldn't write anything, errno: " + String (errno));
                 port->close ();
                 break;
             }
