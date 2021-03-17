@@ -76,6 +76,8 @@ bool SerialPort::exists()
 }
 void SerialPort::close()
 {
+    DebugLog ("SerialPort::close", "closing port:" + portPath);
+
 	if(-1 != portDescriptor)
 	{
 		//wait for garbage to go? nah...
@@ -87,29 +89,31 @@ void SerialPort::close()
 bool SerialPort::open(const String & portPath)
 {
 	this->portPath = portPath;
+    DebugLog ("SerialPort::open", "opening port:" + this->portPath);
+
     struct termios options;
 	portDescriptor = ::open(portPath.getCharPointer(), O_RDWR | O_NOCTTY | O_NONBLOCK);
     if (portDescriptor == -1)
     {
-        DebugLog ("SerialPort::open : open() failed");
+        DebugLog ("SerialPort::open", "open() failed");
         return false;
     }
     // don't allow multiple opens
     if (ioctl(portDescriptor, TIOCEXCL) == -1)
     {
-        DebugLog ("SerialPort::open : ioctl error, non critical");
+        DebugLog ("SerialPort::open", "ioctl error, non critical");
     }
     // we want blocking io actually
 	if (fcntl(portDescriptor, F_SETFL, 0) == -1)
     {
-        DebugLog ("SerialPort::open : fcntl error");
+        DebugLog ("SerialPort::open", "fcntl error");
 		close();
         return false;
     }
 	// Get the current options
     if (tcgetattr(portDescriptor, &options) == -1)
     {
-        DebugLog ("SerialPort::open : can't get port settings to set timeouts");
+        DebugLog ("SerialPort::open", "can't get port settings to set timeouts");
 		close();
         return false;
     }
@@ -119,7 +123,7 @@ bool SerialPort::open(const String & portPath)
     options.c_cc[VTIME] = 5;
 	if (tcsetattr(portDescriptor, TCSANOW, &options) == -1)
     {
-        DebugLog ("SerialPort::open : can't set port settings (timeouts)");
+        DebugLog ("SerialPort::open", "can't set port settings (timeouts)");
 		close();
         return false;
     }
@@ -162,7 +166,7 @@ bool SerialPort::setConfig(const SerialPortConfig & config)
 		break;
 	case SerialPortConfig::SERIALPORT_PARITY_MARK:
 	case SerialPortConfig::SERIALPORT_PARITY_SPACE:
-		DebugLog("SerialPort::setConfig : SERIALPORT_PARITY_MARK and SERIALPORT_PARITY_SPACE not supported on Mac");
+		DebugLog("SerialPort::setConfig", "SERIALPORT_PARITY_MARK and SERIALPORT_PARITY_SPACE not supported on Mac");
 		return false;//not supported
 		break;
 	case SerialPortConfig::SERIALPORT_PARITY_NONE:
@@ -172,7 +176,7 @@ bool SerialPort::setConfig(const SerialPortConfig & config)
 	//stopbits
 	if (config.stopbits==SerialPortConfig::STOPBITS_1ANDHALF)
 	{
-		DebugLog ("SerialPort::setConfig : STOPBITS_1ANDHALF not supported on Mac");
+		DebugLog ("SerialPort::setConfig", "STOPBITS_1ANDHALF not supported on Mac");
 		return false;//not supported
 	}
 	if(config.stopbits==SerialPortConfig::STOPBITS_2)
@@ -194,13 +198,13 @@ bool SerialPort::setConfig(const SerialPortConfig & config)
 	}
 	if (tcsetattr(portDescriptor, TCSANOW, &options) == -1)
     {
-        DebugLog("SerialPort::setConfig : can't set port settings");
+        DebugLog("SerialPort::setConfig", "can't set port settings");
         return false;
     }
     
     int new_baud = static_cast<int> (config.bps);
     if (ioctl (portDescriptor, _IOW('T', 2, speed_t), &new_baud, 1) == -1) {
-        DebugLog ("SerialPort::setConfig : can't set baud rate");
+        DebugLog ("SerialPort::setConfig", "can't set baud rate");
         return false;
     }
     
@@ -212,7 +216,7 @@ bool SerialPort::getConfig(SerialPortConfig & config)
 	if(-1==portDescriptor)return false;
 	if (tcgetattr(portDescriptor, &options) == -1)
     {
-        DebugLog("SerialPort::getConfig : cannot get port settings");
+        DebugLog("SerialPort::getConfig", "cannot get port settings");
         return false;
     }
 	config.bps = ((int)cfgetispeed(&options))>((int)cfgetospeed(&options))?(int)cfgetispeed(&options):(int)cfgetospeed(&options);
@@ -250,6 +254,8 @@ void SerialPortInputStream::cancel ()
 
 void SerialPortInputStream::run()
 {
+    port->DebugLog ("SerialPortInputStream::run", "starting thread");
+
     while (port != nullptr && port->portDescriptor != -1 && ! threadShouldExit ())
     {
         unsigned char c;
@@ -268,11 +274,13 @@ void SerialPortInputStream::run()
         }
         else if (bytesread == -1)
         {
-            port->DebugLog ("SerialPortInputStream::run() ::read() returned " + String(bytesread) + ", errno: " + String (errno));
+            port->DebugLog ("SerialPortInputStream::run", "::read() returned " + String(bytesread) + ", errno: " + String (errno));
             port->close ();
             break;
         }
     }
+
+    port->DebugLog ("SerialPortInputStream::run", "stoping thread");
 }
 
 int SerialPortInputStream::read(void *destBuffer, int maxBytesToRead)
@@ -302,6 +310,8 @@ void SerialPortOutputStream::cancel ()
 
 void SerialPortOutputStream::run()
 {
+    port->DebugLog ("SerialPortOutputStream::run", "starting thread");
+
     unsigned char tempbuffer[writeBufferSize];
     while(port && (port->portDescriptor!=-1) && !threadShouldExit())
     {
@@ -322,12 +332,13 @@ void SerialPortOutputStream::run()
             }
             else
             {
-                port->DebugLog ("SerialPortOutputStream::run ::write() couldn't write anything, errno: " + String (errno));
+                port->DebugLog ("SerialPortOutputStream::run", "::write() couldn't write anything, errno: " + String (errno));
                 port->close ();
                 break;
             }
         }
     }
+    port->DebugLog ("SerialPortOutputStream::run", "stoping thread");
 }
 
 bool SerialPortOutputStream::write(const void *dataToWrite, size_t howManyBytes)
