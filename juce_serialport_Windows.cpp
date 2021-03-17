@@ -151,12 +151,12 @@ bool SerialPort::open(const String & newPortPath)
         commTimeout.WriteTotalTimeoutMultiplier = 0;
     }
     else
-        DBG("GetCommTimeouts error");
-    if (!SetCommTimeouts(portHandle, &commTimeout))
-        DBG("SetCommTimeouts error");
+        DebugLog ("GetCommTimeouts error");
+    if (!SetCommTimeouts (portHandle, &commTimeout))
+        DebugLog ("SetCommTimeouts error");
 
-    if (!SetCommMask(portHandle, EV_RXCHAR))
-        DBG("SetCommMask error");
+    if (!SetCommMask (portHandle, EV_RXCHAR))
+        DebugLog ("SetCommMask error");
 
     return true;
 }
