@@ -71,6 +71,8 @@ a typical serialport scenario may be:
 
 #include <stdint.h>
 
+using DebugFunction = std::function<void (juce::String, juce::String)>;
+
 class JUCE_API SerialPortConfig
 {
 public:
@@ -94,19 +96,17 @@ public:
 class JUCE_API SerialPort
 {
 public:
-	SerialPort()
+    SerialPort (DebugFunction theDebugLog) : DebugLogInternal (theDebugLog)
 	{
 		portHandle = 0;
 		portDescriptor = -1;
 	}
-	SerialPort(const juce::String & portPath)
+    SerialPort (const juce::String& portPath, DebugFunction theDebugLog) : SerialPort (theDebugLog)
 	{
-		SerialPort();
 		open(portPath);
 	}
-	SerialPort(const juce::String & portPath, const SerialPortConfig & config)
+    SerialPort (const juce::String& portPath, const SerialPortConfig& config, DebugFunction theDebugLog) : SerialPort (theDebugLog)
 	{
-		SerialPort();
 		open(portPath);
 		setConfig(config);
 	}
@@ -122,6 +122,8 @@ public:
 	static juce::StringPairArray getSerialPortPaths();
 	bool exists();
     virtual void cancel ();
+	void DebugLog (juce::String prefix, juce::String msg) { DebugLogInternal == nullptr ? juce::Logger::outputDebugString (prefix + " -> " + msg) : DebugLogInternal (prefix, msg); }
+
 	juce_UseDebuggingNewOperator
 private:
 	friend class SerialPortInputStream;
@@ -130,6 +132,8 @@ private:
 	int portDescriptor;
     bool canceled;
 	juce::String portPath;
+
+    DebugFunction DebugLogInternal;
 
 #if JUCE_ANDROID
     jobject usbSerialHelper;

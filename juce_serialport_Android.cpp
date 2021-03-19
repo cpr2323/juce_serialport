@@ -82,14 +82,14 @@ StringPairArray SerialPort::getSerialPortPaths()
         auto numPorts = stringArray.size();
         if (numPorts > 0)
         {
-            //DBG("******************************* portNames = " + portNames + "; numPorts = " + String(numPorts));
+            //DBG ("******************************* portNames = " + portNames + "; numPorts = " + String(numPorts));
             //with the way that StringArray::fromTokens() works, the last token is empty, so skip it
             for (int i = 0; i < numPorts - 1; ++i)
                 serialPortPaths.set(String(i), stringArray[i]);
         }
         return serialPortPaths;
     } catch (const std::exception& e) {
-        DBG("EXCEPTION IN SerialPort::getSerialPortPaths()" + String(e.what()));
+        DBG ("EXCEPTION IN SerialPort::getSerialPortPaths()" + String(e.what()));
         return serialPortPaths;
     }
 }
@@ -126,7 +126,7 @@ bool SerialPort::open(const String & newPortPath)
         //attempt to connect to the newPortPath
         result = (jboolean) env->CallBooleanMethod (usbSerialHelper, UsbSerialHelper.connect, newPortPath.getIntValue());
     } catch (const std::exception& e) {
-        DBG("********************* EXCEPTION IN SerialPort::open()" + String(e.what()));
+        DebugLog ("SerialPort::open", "EXCEPTION: " + String(e.what()));
 
         portPath = "";
         portDescriptor = -1;
@@ -226,7 +226,7 @@ bool SerialPort::getConfig(SerialPortConfig & config)
     else
         return false;
 
-    //DBG("********************************* SerialPort::getConfig() baudrate: " + String(baudRate) + " dataBits: " + String(dataBits) + " stopBits: " + String(stopBits) + " parity: " + String(parity));
+    //DebugLog("********************************* SerialPort::getConfig() baudrate: " + String(baudRate) + " dataBits: " + String(dataBits) + " stopBits: " + String(stopBits) + " parity: " + String(parity));
     return true;
 }
 
@@ -249,13 +249,13 @@ void SerialPortInputStream::run()
                     const ScopedLock lock(bufferCriticalSection);
                     buffer.ensureSize(bufferedbytes + bytesRead);
 
-                    //String dbg;
+                    //String msg;
                     for (int i = 0; i < bytesRead; ++i)
                     {
                         buffer[bufferedbytes++] = jbuffer[i];
-                        //dbg += String (std::bitset<8>(static_cast<char>(buffer[bufferedbytes])).to_string()) + " ";
+                        //msg += String (std::bitset<8>(static_cast<char>(buffer[bufferedbytes])).to_string()) + " ";
                     }
-                    //DBG("*************** SerialPortInputStream::run(): " + dbg);
+                    //port->DebugLog("*************** SerialPortInputStream::run(): " + msg);
                 }
                 env->ReleaseByteArrayElements(result, jbuffer, 0);
 
@@ -271,7 +271,7 @@ void SerialPortInputStream::run()
             env->DeleteLocalRef(result);
         }
     } catch (const std::exception& e) {
-        DBG("********************* EXCEPTION IN SerialPortInputStream::run()" + String(e.what()));
+        port->DebugLog ("SerialPortInputStream::run", "EXCEPTION: " + String(e.what()));
     }
 }
 
@@ -301,7 +301,7 @@ int SerialPortInputStream::read(void *destBuffer, int maxBytesToRead)
 void SerialPortOutputStream::run()
 {
     //TODO if this is not used, can we stop it from running?
-    DBG("SerialPortOutputStream::run()");
+    port->DebugLog("SerialPortOutputStream::run", "this function is called but doesn't do anything and exists immediately");
 }
 
 void SerialPortOutputStream::cancel ()
@@ -323,19 +323,19 @@ bool SerialPortOutputStream::write(const void *dataToWrite, size_t howManyBytes)
         jbyteArray jByteArray = env->NewByteArray(howManyBytes);
         signed char cSignedCharArray[howManyBytes];
 
-        //String dbg;
+        //String msg;
         for (int i = 0; i < howManyBytes; ++i)
         {
             cSignedCharArray[i] = static_cast<const signed char*>(dataToWrite)[i];
-            //dbg += String (std::bitset<8>(cSignedCharArray[i]).to_string()) + " ";
+            //msg += String (std::bitset<8>(cSignedCharArray[i]).to_string()) + " ";
         }
-        //DBG("*************** SerialPortOutputStream::write (): " + dbg);
+        //port->DebugLog("*************** SerialPortOutputStream::write (): " + msg);
 
         env->SetByteArrayRegion(jByteArray, 0, howManyBytes, cSignedCharArray);
         result = (jboolean) env->CallBooleanMethod(port->usbSerialHelper, UsbSerialHelper.write, jByteArray);
         env->DeleteLocalRef(jByteArray);
     } catch (const std::exception& e) {
-        DBG("********************* EXCEPTION IN SerialPortOutputStream::write()" + String(e.what()));
+        port->DebugLog ("SerialPortOutputStream::write", "EXCEPTION: " + String(e.what()));
         return false;
     }
 
