@@ -212,6 +212,7 @@ public:
 	virtual bool setPosition(juce::int64 /*newPosition*/){return false;}
     virtual void cancel ();
     SerialPort* getPort() { return port; }
+    void setReaderPriority (int priority) { setPriority (priority); }
 
 private:
 	SerialPort* port;
@@ -249,6 +250,8 @@ public:
 	virtual bool write(const void *dataToWrite, size_t howManyBytes);
     virtual void cancel ();
     SerialPort* getPort() { return port; }
+    void setWriterPriority (int priority) { setPriority (priority); }
+
 private:
 	SerialPort * port;
 	int bufferedbytes;
