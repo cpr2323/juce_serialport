@@ -122,7 +122,7 @@ public:
 	static juce::StringPairArray getSerialPortPaths();
 	bool exists();
     virtual void cancel ();
-	void DebugLog (juce::String prefix, juce::String msg) { DebugLogInternal == nullptr ? juce::Logger::outputDebugString (prefix + " -> " + msg) : DebugLogInternal (prefix, msg); }
+	void DebugLog (juce::String prefix, juce::String msg) { if (DebugLogInternal != nullptr) DebugLogInternal (prefix, msg); }
 
 	juce_UseDebuggingNewOperator
 private:
