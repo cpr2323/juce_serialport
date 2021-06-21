@@ -65,11 +65,14 @@ a typical serialport scenario may be:
 }
 */
 
-
 #ifndef _SERIALPORT_H_
 #define _SERIALPORT_H_
 
 #include <stdint.h>
+
+#if JUCE_ANDROID
+	#include <jni.h>
+#endif
 
 using DebugFunction = std::function<void (juce::String, juce::String)>;
 
