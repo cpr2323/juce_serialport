@@ -105,7 +105,7 @@ StringPairArray SerialPort::getSerialPortPaths()
             }
             else
                 SetLastError(ERROR_OUTOFMEMORY);
-        }
+            }
 
         //Close the registry key now that we are finished with it    
         RegCloseKey(hSERIALCOMM);
@@ -300,46 +300,50 @@ bool SerialPort::getConfig(SerialPortConfig & config)
 /////////////////////////////////
 void SerialPortInputStream::run()
 {
+    //port->DebugLog ("SerialPortInputStream::run", "starting");
     DWORD dwEventMask = 0;
     //overlapped structure for the wait
     OVERLAPPED ov;
     memset(&ov, 0, sizeof(ov));
     ov.hEvent = CreateEvent(0, true, 0, 0);
+    bool ioPending = false;
     //overlapped structure for the read
-    OVERLAPPED ovRead;
-    memset(&ovRead, 0, sizeof(ovRead));
-    ovRead.hEvent = CreateEvent(0, true, 0, 0);
     while (port && port->portHandle && !threadShouldExit())
     {
-        unsigned char c;
-        DWORD bytesread = 0;
-        const auto wceReturn = WaitCommEvent(port->portHandle, &dwEventMask, &ov);
-//         if (dwEventMask != 0)
-//             Logger::outputDebugString (" dwEventMask: " + String::toHexString (dwEventMask));
-        if (wceReturn == 0 && GetLastError () != ERROR_IO_PENDING)
+        if (!ioPending)
         {
-            //Logger::outputDebugString ("SerialPortInputStream error");
-            port->close ();
-            break;
+            const auto wceReturn = WaitCommEvent (port->portHandle, &dwEventMask, &ov);
+//             if (dwEventMask != 0)
+//                 Logger::outputDebugString (" dwEventMask: " + String::toHexString (dwEventMask));
+            if (wceReturn == 0 && GetLastError () != ERROR_IO_PENDING)
+            {
+                port->DebugLog ("SerialPortInputStream::run", "error" );
+                port->close ();
+                break;
+            }
         }
 
+        ioPending = true;
         if (/*(dwEventMask & EV_RXCHAR) && */WAIT_OBJECT_0 == WaitForSingleObject(ov.hEvent, 100))
         {
             DWORD dwMask;
             if (GetCommMask(port->portHandle, &dwMask))
             {
+                OVERLAPPED ovRead;
+                memset (&ovRead, 0, sizeof (ovRead));
+                ovRead.hEvent = CreateEvent (0, true, 0, 0);
                 //if (dwMask & EV_RXCHAR)
                 {
+                    DWORD bytesread = 0;
                     do
                     {
+                        unsigned char c;
                         ResetEvent(ovRead.hEvent);
-                        //Logger::outputDebugString (" ReadFile");
                         ReadFile(port->portHandle, &c, 1, &bytesread, &ovRead);
-//                         if (GetLastError () != ERROR_SUCCESS)
-//                             Logger::outputDebugString (" [SerialPortInputStream, getLastError: " + String (GetLastError ()) + "]");
+                        if (GetLastError () != ERROR_SUCCESS)
+                            port->DebugLog("SerialPortInputStream::run", "[getLastError:" + String (GetLastError ()) + "]");
                         if (bytesread == 1)
                         {
-                            //Logger::outputDebugString (" add data to input buffer");
                             const ScopedLock l(bufferCriticalSection);
                             buffer.ensureSize(bufferedbytes + 1);
                             buffer[bufferedbytes] = c;
@@ -349,14 +353,14 @@ void SerialPortInputStream::run()
                         }
                     } while (bytesread);
                 }
+                CloseHandle (ovRead.hEvent);
+                ioPending = false;
             }
             ResetEvent(ov.hEvent);
         }
     }
-    CloseHandle(ovRead.hEvent);
     CloseHandle(ov.hEvent);
-//    Logger::outputDebugString ("SerialPortInputStream::run exiting");
-
+    //port->DebugLog ("SerialPortInputStream::run", "exiting");
 }
 
 void SerialPortInputStream::cancel ()
@@ -385,6 +389,7 @@ int SerialPortInputStream::read(void *destBuffer, int maxBytesToRead)
 /////////////////////////////////
 void SerialPortOutputStream::run()
 {
+    //port->DebugLog ("SerialPortOutputStream::run", "starting");
     unsigned char tempbuffer[writeBufferSize];
     OVERLAPPED ov;
     memset(&ov, 0, sizeof(ov));
@@ -401,19 +406,15 @@ void SerialPortOutputStream::run()
             memcpy (tempbuffer, buffer.getData (), bytestowrite);
             bufferCriticalSection.exit ();
             ResetEvent (ov.hEvent);
-            //Logger::outputDebugString (" WriteFile");
             int iRet = WriteFile (port->portHandle, tempbuffer, bytestowrite, &byteswritten, &ov);
             if (threadShouldExit () || (GetLastError () != ERROR_SUCCESS && GetLastError () != ERROR_IO_PENDING))
                 continue;
             if (iRet == 0 && GetLastError() == ERROR_IO_PENDING)
             {
-                //Logger::outputDebugString (" WaitForSingleObject");
                 DWORD waitResult = WaitForSingleObject (ov.hEvent, 1000);
                 if (threadShouldExit () || waitResult != WAIT_OBJECT_0)
                     continue;
             }
-            //Logger::outputDebugString (" [getLastError: " + String(GetLastError ()) + "]");
-            //Logger::outputDebugString (" GetOverlappedResult ");
             GetOverlappedResult (port->portHandle, &ov, &byteswritten, TRUE);
             if (byteswritten)
             {
@@ -424,7 +425,7 @@ void SerialPortOutputStream::run()
         }
     }
     CloseHandle(ov.hEvent);
-//    Logger::outputDebugString ("SerialPortOutputStream::run exiting");
+    //port->DebugLog ("SerialPortOutputStream::run", "starting");
 }
 
 void SerialPortOutputStream::cancel ()

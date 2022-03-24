@@ -254,7 +254,7 @@ void SerialPortInputStream::cancel ()
 
 void SerialPortInputStream::run()
 {
-    port->DebugLog ("SerialPortInputStream::run", "starting thread");
+    //port->DebugLog ("SerialPortInputStream::run", "starting thread");
 
     while (port != nullptr && port->portDescriptor != -1 && ! threadShouldExit ())
     {
@@ -272,7 +272,7 @@ void SerialPortInputStream::run()
             if (notify == NOTIFY_ALWAYS || (notify == NOTIFY_ON_CHAR && c == notifyChar))
                 sendChangeMessage();
         }
-        else if (bytesread == -1)
+        else if (bytesread == -1 && errno != EAGAIN)
         {
             port->DebugLog ("SerialPortInputStream::run", "::read() returned " + String(bytesread) + ", errno: " + String (errno));
             port->close ();
@@ -280,7 +280,7 @@ void SerialPortInputStream::run()
         }
     }
 
-    port->DebugLog ("SerialPortInputStream::run", "stoping thread");
+    //port->DebugLog ("SerialPortInputStream::run", "stopping thread");
 }
 
 int SerialPortInputStream::read(void *destBuffer, int maxBytesToRead)
@@ -310,11 +310,12 @@ void SerialPortOutputStream::cancel ()
 
 void SerialPortOutputStream::run()
 {
-    port->DebugLog ("SerialPortOutputStream::run", "starting thread");
+    //port->DebugLog ("SerialPortOutputStream::run", "starting thread");
 
     unsigned char tempbuffer[writeBufferSize];
     while(port && (port->portDescriptor!=-1) && !threadShouldExit())
     {
+		// todo - there are two reads of 'bufferedbytes' which are outside of a mutex, should it be atomic at the minimum
         if (! bufferedbytes)
             triggerWrite.wait(100);
         if (bufferedbytes)
@@ -338,7 +339,7 @@ void SerialPortOutputStream::run()
             }
         }
     }
-    port->DebugLog ("SerialPortOutputStream::run", "stoping thread");
+    //port->DebugLog ("SerialPortOutputStream::run", "stopping thread");
 }
 
 bool SerialPortOutputStream::write(const void *dataToWrite, size_t howManyBytes)
