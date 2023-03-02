@@ -215,7 +215,15 @@ public:
 	virtual bool setPosition(juce::int64 /*newPosition*/){return false;}
     virtual void cancel ();
     SerialPort* getPort() { return port; }
+#if USING_JUCE_PRIOR_TO_7_0_5
+    // if this line does not compile, you are likely using JUCE 7.0.5 or above
+    // in which case you should remove the definition of USING_JUCE_PRIOR_TO_7_0_5 macro from your projucer, or cmake, project
     void setReaderPriority (int priority) { setPriority (priority); }
+#else
+	// if this line does not compile, you are likely using a version of JUCE prior to version 7.0.5
+	// in which case you should define the USING_JUCE_PRIOR_TO_7_0_5 macro to 1 in your projucer, or cmake, project
+    void setReaderPriority (Thread::Priority priority) { setPriority (priority); }
+#endif
 
 private:
 	SerialPort* port;
@@ -253,7 +261,15 @@ public:
 	virtual bool write(const void *dataToWrite, size_t howManyBytes);
     virtual void cancel ();
     SerialPort* getPort() { return port; }
+#if USING_JUCE_PRIOR_TO_7_0_5
+    // if this line does not compile, you are likely using JUCE 7.0.5 or above
+    // in which case you should remove the definition of USING_JUCE_PRIOR_TO_7_0_5 macro from your projucer, or cmake, project
     void setWriterPriority (int priority) { setPriority (priority); }
+#else
+    // if this line does not compile, you are likely using a version of JUCE prior to version 7.0.5
+    // in which case you should define the USING_JUCE_PRIOR_TO_7_0_5 macro to 1 in your projucer, or cmake, project
+    void setWriterPriority (Thread::Priority priority) { setPriority (priority); }
+#endif
 
 private:
 	SerialPort * port;

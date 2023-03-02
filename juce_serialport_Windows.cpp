@@ -407,9 +407,19 @@ void SerialPortOutputStream::run()
             bufferCriticalSection.exit ();
             ResetEvent (ov.hEvent);
             int iRet = WriteFile (port->portHandle, tempbuffer, bytestowrite, &byteswritten, &ov);
-            if (threadShouldExit () || (GetLastError () != ERROR_SUCCESS && GetLastError () != ERROR_IO_PENDING))
+            auto const lastError = GetLastError ();
+            if (lastError == ERROR_BAD_COMMAND)
+            {
+                port->DebugLog ("SerialPortOutputStream::run", "error");
+                port->close ();
+                break;
+            }
+            if (threadShouldExit () || (lastError != ERROR_SUCCESS && lastError != ERROR_IO_PENDING))
+            {
+                port->DebugLog ("SerialPortOutputStream::run", "[getLastError:" + String (lastError) + "]");
                 continue;
-            if (iRet == 0 && GetLastError() == ERROR_IO_PENDING)
+            }
+            if (iRet == 0 && lastError == ERROR_IO_PENDING)
             {
                 DWORD waitResult = WaitForSingleObject (ov.hEvent, 1000);
                 if (threadShouldExit () || waitResult != WAIT_OBJECT_0)
