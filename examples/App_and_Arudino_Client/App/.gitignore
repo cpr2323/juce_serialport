@@ -1,0 +1,12 @@
+# project files to ignore
+JuceLibraryCode/**
+Builds/**
+build/**
+out/**
+.vs/**
+cmake_build/**
+*.xcuserdatad
+*.vcxproj.user
+*.smproj
+*.bak
+.DS_Store

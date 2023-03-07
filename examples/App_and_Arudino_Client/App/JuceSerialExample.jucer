@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<JUCERPROJECT id="cHnBWL" name="JuceSerialExample" projectType="guiapp" useAppConfig="0"
+              addUsingNamespaceToJuceHeader="0" displaySplashScreen="1" jucerFormatVersion="1">
+  <MAINGROUP id="QcypoH" name="JuceSerialExample">
+    <GROUP id="{A4AFEE2B-5D4D-EF52-FE11-3EB645BF4933}" name="Source">
+      <GROUP id="{5E68E4D5-80CC-568A-9A6C-6D29AE18975F}" name="GUI">
+        <GROUP id="{6B1A07BF-03F7-F392-6599-3D3DF79D2D9A}" name="Serial">
+          <FILE id="wzDDkH" name="SerialComponent.cpp" compile="1" resource="0"
+                file="Source/GUI/Serial/SerialComponent.cpp"/>
+          <FILE id="RUypaB" name="SerialComponent.h" compile="0" resource="0"
+                file="Source/GUI/Serial/SerialComponent.h"/>
+        </GROUP>
+        <FILE id="fJQSF4" name="MainComponent.cpp" compile="1" resource="0"
+              file="Source/GUI/MainComponent.cpp"/>
+        <FILE id="bX9IDZ" name="MainComponent.h" compile="0" resource="0" file="Source/GUI/MainComponent.h"/>
+      </GROUP>
+      <GROUP id="{666E22F7-2A44-F360-C3D0-7FD8BFA2E53C}" name="Serial">
+        <FILE id="eBRSYO" name="SerialDevice.cpp" compile="1" resource="0"
+              file="Source/Serial/SerialDevice.cpp"/>
+        <FILE id="DKMe21" name="SerialDevice.h" compile="0" resource="0" file="Source/Serial/SerialDevice.h"/>
+        <FILE id="f6fGrc" name="SerialPortListMonitor.cpp" compile="1" resource="0"
+              file="Source/Serial/SerialPortListMonitor.cpp"/>
+        <FILE id="BuegXa" name="SerialPortListMonitor.h" compile="0" resource="0"
+              file="Source/Serial/SerialPortListMonitor.h"/>
+      </GROUP>
+      <FILE id="CZ7u2D" name="Main.cpp" compile="1" resource="0" file="Source/Main.cpp"/>
+    </GROUP>
+  </MAINGROUP>
+  <MODULES>
+    <MODULE id="juce_core" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
+    <MODULE id="juce_data_structures" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
+    <MODULE id="juce_events" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
+    <MODULE id="juce_graphics" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
+    <MODULE id="juce_gui_basics" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
+    <MODULE id="juce_serialport" showAllCode="1" useLocalCopy="0" useGlobalPath="0"/>
+  </MODULES>
+  <JUCEOPTIONS JUCE_STRICT_REFCOUNTEDPOINTER="1"/>
+  <EXPORTFORMATS>
+    <VS2022 targetFolder="Builds/VisualStudio2022">
+      <CONFIGURATIONS>
+        <CONFIGURATION isDebug="1" name="Debug" targetName="JuceSerialExample"/>
+        <CONFIGURATION isDebug="0" name="Release" targetName="JuceSerialExample"/>
+      </CONFIGURATIONS>
+      <MODULEPATHS>
+        <MODULEPATH id="juce_core" path="../JUCE/modules"/>
+        <MODULEPATH id="juce_data_structures" path="../JUCE/modules"/>
+        <MODULEPATH id="juce_events" path="../JUCE/modules"/>
+        <MODULEPATH id="juce_graphics" path="../JUCE/modules"/>
+        <MODULEPATH id="juce_gui_basics" path="../JUCE/modules"/>
+        <MODULEPATH id="juce_serialport" path="..\..\..\..\..\other_juce_modules"/>
+      </MODULEPATHS>
+    </VS2022>
+  </EXPORTFORMATS>
+</JUCERPROJECT>
