@@ -30,12 +30,16 @@ enum Command
     endOfList
 };
 const int kMaxPayloadSize = 20;
+Command gTestCommandToExecute {Command::lightColor};
 
 SerialDevice::SerialDevice ()
     : Thread (juce::String ("SerialDevice"))
 {
     // start the serial thread reading data
     startThread ();
+
+    // NOTE: this timer is used to send commands for testing purposes
+    startTimer (500);
 }
 
 SerialDevice::~SerialDevice ()
@@ -51,38 +55,38 @@ void SerialDevice::init (juce::String newSerialPortName)
 
 void SerialDevice::setLightColor (uint16_t color)
 {
-    if (serialPortOutput.get () != nullptr)
-    {
-        // TODO: make helper function to assemble packets
-        // TODO: use helper functions to break larger data into bytes
+    if (serialPortOutput.get () == nullptr)
+        return;
 
-        const std::vector<uint8_t> data { kStartByte1, kStartByte2, Command::lightColor, 2,
-                                          static_cast<uint8_t>(color & 0xff), static_cast<uint8_t>((color >> 8) & 0xff) };
-        serialPortOutput->write (data.data (), data.size ());
-    }
+    // TODO: make helper function to assemble packets
+    // TODO: use helper functions to break larger data into bytes
+
+    const std::vector<uint8_t> data { kStartByte1, kStartByte2, Command::lightColor, 2,
+                                      static_cast<uint8_t>(color & 0xff), static_cast<uint8_t>((color >> 8) & 0xff) };
+    serialPortOutput->write (data.data (), data.size ());
 }
 
 void SerialDevice::setTempo (float tempoToSend)
 {
-    if (serialPortOutput.get () != nullptr)
-    {
-        // NOTE: by sending an int instead of a float we don't have to worry about the receiving end storing floats in the same format as the send
-        const auto tempo_as_int { static_cast<uint32_t>(tempoToSend * std::pow (10, kNumberOfDecimalPlaces)) };
-        const std::vector<uint8_t> data { kStartByte1, kStartByte2, Command::tempo, 4,
-                                          static_cast<uint8_t>(tempo_as_int & 0xff), static_cast<uint8_t>((tempo_as_int >> 8) & 0xff),
-                                          static_cast<uint8_t>((tempo_as_int >> 16) & 0xff), static_cast<uint8_t>((tempo_as_int >> 24) & 0xff) };
-        serialPortOutput->write (data.data (), data.size ());
-    }
+    if (serialPortOutput.get () == nullptr)
+        return;
+
+    // NOTE: by sending an int instead of a float we don't have to worry about the receiving end storing floats in the same format as the send
+    const auto tempo_as_int { static_cast<uint32_t>(tempoToSend * std::pow (10, kNumberOfDecimalPlaces)) };
+    const std::vector<uint8_t> data { kStartByte1, kStartByte2, Command::tempo, 4,
+                                      static_cast<uint8_t>(tempo_as_int & 0xff), static_cast<uint8_t>((tempo_as_int >> 8) & 0xff),
+                                      static_cast<uint8_t>((tempo_as_int >> 16) & 0xff), static_cast<uint8_t>((tempo_as_int >> 24) & 0xff) };
+    serialPortOutput->write (data.data (), data.size ());
 }
 
 void SerialDevice::setChargingAlarmLevel (uint8_t alarmType, uint8_t chargeLevel)
 {
-    if (serialPortOutput.get () != nullptr)
-    {
-        const std::vector<uint8_t> data { kStartByte1, kStartByte2, Command::chargingAlarmLevel, 2,
-                                          alarmType, chargeLevel };
-        serialPortOutput->write (data.data (), data.size ());
-    }
+    if (serialPortOutput.get () == nullptr)
+        return;
+
+    const std::vector<uint8_t> data { kStartByte1, kStartByte2, Command::chargingAlarmLevel, 2,
+                                      alarmType, chargeLevel };
+    serialPortOutput->write (data.data (), data.size ());
 }
 
 void SerialDevice::open (void)
@@ -252,6 +256,7 @@ void SerialDevice::run ()
                         while (dataIndex < bytesRead)
                         {
                             const uint8_t dataByte = incomingData [dataIndex];
+                            // NOTE: the following line prints each byte received in the debug output window
                             juce::Logger::outputDebugString (juce::String (dataByte));
                             switch (parseState)
                             {
@@ -328,6 +333,36 @@ void SerialDevice::run ()
             }
             break;
         }
+    }
+}
+
+void SerialDevice::timerCallback ()
+{
+    if (serialPortOutput.get () == nullptr)
+        return;
+    switch (gTestCommandToExecute)
+    {
+        case Command::lightColor:
+        {
+            juce::Logger::outputDebugString ("setting lightColor");
+            setLightColor (100);
+            gTestCommandToExecute = Command::tempo;
+        }
+        break;
+        case Command::tempo:
+        {
+            juce::Logger::outputDebugString ("setting tempo");
+            setTempo (120.f);
+            gTestCommandToExecute = Command::chargingAlarmLevel;
+        }
+        break;
+        case Command::chargingAlarmLevel:
+        {
+            juce::Logger::outputDebugString ("setting ChargingAlarmLevel");
+            setChargingAlarmLevel(0, 50);
+            gTestCommandToExecute = Command::lightColor;
+        }
+        break;
     }
 }
 

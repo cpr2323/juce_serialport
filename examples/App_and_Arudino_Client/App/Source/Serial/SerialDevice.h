@@ -3,7 +3,7 @@
 #include "SerialPortListMonitor.h"
 
 // NOTE: This class could be named for the name of the thing you are connecting to: LEDContllerDevice, DrumMachineDevice, SolarMonitorDevice, etc
-class SerialDevice : private juce::Thread
+class SerialDevice : private juce::Thread, private juce::Timer
 {
 public:
     SerialDevice ();
@@ -50,4 +50,5 @@ private:
     void handleCommand (uint8_t command, uint8_t* data, int dataSize);
 
     void run () override;
+    void timerCallback () override;
 };
