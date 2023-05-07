@@ -126,6 +126,7 @@ public:
 	bool exists();
     virtual void cancel ();
 	void DebugLog (juce::String prefix, juce::String msg) { if (DebugLogInternal != nullptr) DebugLogInternal (prefix, msg); }
+	void setDebugLogFunction (DebugFunction theDebugLog) { DebugLogInternal = theDebugLog; }
 
 	juce_UseDebuggingNewOperator
 private:

@@ -313,8 +313,8 @@ void SerialPortInputStream::run()
         if (!ioPending)
         {
             const auto wceReturn = WaitCommEvent (port->portHandle, &dwEventMask, &ov);
-//             if (dwEventMask != 0)
-//                 Logger::outputDebugString (" dwEventMask: " + String::toHexString (dwEventMask));
+             if (dwEventMask != 0 && !(dwEventMask & 0x400) && !(dwEventMask & 0x4) && !(dwEventMask & 0x1))
+                 juce::Logger::outputDebugString (" dwEventMask: " + String::toHexString (dwEventMask));
             if (wceReturn == 0 && GetLastError () != ERROR_IO_PENDING)
             {
                 port->DebugLog ("SerialPortInputStream::run", "error" );
@@ -324,6 +324,14 @@ void SerialPortInputStream::run()
         }
 
         ioPending = true;
+        DCB handleDCB;
+        auto success { GetCommState (port->portHandle, &handleDCB) };
+        if (success == 0 && GetLastError () == ERROR_BAD_COMMAND)
+        {
+            //port->DebugLog ("SerialPortInputStream::run", "[GetCommState failed - GetLastError () = " + juce::String::toHexString(GetLastError()) + "]");
+            port->close ();
+            break;
+        }
         if (/*(dwEventMask & EV_RXCHAR) && */WAIT_OBJECT_0 == WaitForSingleObject(ov.hEvent, 100))
         {
             DWORD dwMask;
