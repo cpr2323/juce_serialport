@@ -88,13 +88,19 @@ namespace
             config.bps = options.bps;
             port.setConfig (config);
             link.setFarEndBps (options.bps);
-            if (callback != nullptr)
+            const auto usesCallback { callback != nullptr };
+            if (usesCallback)
                 input = std::make_unique<SerialPortInputStream> (&port, std::move (callback), alsoBuffer);
             else
                 input = std::make_unique<SerialPortInputStream> (&port);
             output = std::make_unique<SerialPortOutputStream> (&port);
-            // let anything left over from a previous test arrive, then discard it
-            juce::Thread::sleep (100);
+            // let the device start up, and anything left over from a previous test arrive, then discard it
+            juce::Thread::sleep (juce::jmax (100, link.getSettleTimeMs ()));
+            if (! usesCallback)
+            {
+                char discard [256];
+                while (input->read (discard, sizeof (discard)) > 0) {}
+            }
             if (auto received { link.getFarEndReceived () })
                 received->take ();
         }
@@ -373,6 +379,14 @@ namespace
             return;
         }
 
+        // a USB serial bridge (eg. an Uno's 16U2) can replay data from a previous test once the port is reopened,
+        // which arrives while the fixture waits for the device to start. discard it, and measure from here
+        const auto discarded { received.take ().getSize () };
+        if (discarded > 0)
+            info ("discarded " + juce::String (discarded) + " bytes left over from a previous test");
+        firstArrivalTicks = 0;
+        const auto bytesReceivedBefore { fixture.input->getNumBytesReceived () };
+
         // latency of a single short message
         const char ping [] { "ping" };
         const auto sendTicks { juce::Time::getHighResolutionTicks () };
@@ -400,7 +414,7 @@ namespace
         check (arrived, juce::String (numBytes / 1024) + " KB arrived");
         check (received.take () == data, "it arrived intact");
         info ("throughput: " + juce::String (static_cast<double> (numBytes) / seconds / 1024.0, 1) + " KB/s");
-        check (fixture.input->getNumBytesReceived () == numBytes + 4, "getNumBytesReceived counts everything");
+        check (fixture.input->getNumBytesReceived () - bytesReceivedBefore == numBytes + 4, "getNumBytesReceived counts everything");
     }
 
     //==============================================================================

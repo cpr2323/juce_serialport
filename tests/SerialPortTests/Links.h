@@ -83,6 +83,9 @@ public:
     // false if the driver ignores parity and stop bits (pseudo terminals)
     virtual bool supportsLineSettings () const { return true; }
 
+    // how long the device needs after the port is opened before it can receive
+    virtual int getSettleTimeMs () const { return 0; }
+
     // true if the test can make the device go away
     virtual bool canHangUp () const { return false; }
     virtual void hangUp () {}
@@ -232,6 +235,9 @@ public:
     juce::String getName () const override { return "echo device " + portUnderTest; }
     juce::String getPortUnderTest () const override { return portUnderTest; }
     bool echoes () const override { return true; }
+    // opening the port resets Arduinos with a USB serial bridge (Uno, Mega, Nano), and the bootloader ignores
+    // anything sent while it runs
+    int getSettleTimeMs () const override { return 2500; }
 
 private:
     juce::String portUnderTest;
