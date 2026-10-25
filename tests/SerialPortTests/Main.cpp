@@ -90,19 +90,31 @@ namespace
             link.setFarEndBps (options.bps);
             const auto usesCallback { callback != nullptr };
             if (usesCallback)
-                input = std::make_unique<SerialPortInputStream> (&port, std::move (callback), alsoBuffer);
+            {
+                // the test's callback only sees data which arrives once the fixture is ready
+                input = std::make_unique<SerialPortInputStream> (&port, [ready = ready, testCallback = std::move (callback)] (const void* data, int numBytes)
+                {
+                    if (ready->load ())
+                        testCallback (data, numBytes);
+                }, alsoBuffer);
+            }
             else
+            {
                 input = std::make_unique<SerialPortInputStream> (&port);
+            }
             output = std::make_unique<SerialPortOutputStream> (&port);
-            // let the device start up, and anything left over from a previous test arrive, then discard it
+
+            // let the device start up, and anything left over from a previous test arrive (a USB serial bridge, eg. an
+            // Uno's 16U2, can replay a few bytes once the port is reopened), then discard it
             juce::Thread::sleep (juce::jmax (100, link.getSettleTimeMs ()));
-            if (! usesCallback)
+            if (! usesCallback || alsoBuffer)
             {
                 char discard [256];
                 while (input->read (discard, sizeof (discard)) > 0) {}
             }
             if (auto received { link.getFarEndReceived () })
                 received->take ();
+            ready->store (true);
         }
 
         ~Fixture ()
@@ -114,6 +126,7 @@ namespace
 
         bool isOpen () const { return port.exists (); }
 
+        std::shared_ptr<std::atomic<bool>> ready { std::make_shared<std::atomic<bool>> (false) };
         SerialPort port;
         std::unique_ptr<SerialPortInputStream> input;
         std::unique_ptr<SerialPortOutputStream> output;
@@ -379,12 +392,7 @@ namespace
             return;
         }
 
-        // a USB serial bridge (eg. an Uno's 16U2) can replay data from a previous test once the port is reopened,
-        // which arrives while the fixture waits for the device to start. discard it, and measure from here
-        const auto discarded { received.take ().getSize () };
-        if (discarded > 0)
-            info ("discarded " + juce::String (discarded) + " bytes left over from a previous test");
-        firstArrivalTicks = 0;
+        // the count includes anything the fixture discarded while the device started
         const auto bytesReceivedBefore { fixture.input->getNumBytesReceived () };
 
         // latency of a single short message
@@ -526,6 +534,273 @@ namespace
     }
 
     //==============================================================================
+    // sends to the port under test, from the far end, or through the port itself when the device echoes
+    void sendToPort (Link& link, Fixture& fixture, const void* data, size_t numBytes)
+    {
+        if (link.hasFarEnd ())
+            link.sendFromFarEnd (data, numBytes);
+        else
+            fixture.output->write (data, numBytes);
+    }
+
+    void sendToPort (Link& link, Fixture& fixture, const char* text)
+    {
+        sendToPort (link, fixture, text, std::strlen (text));
+    }
+
+    bool waitForBuffered (SerialPortInputStream& input, juce::int64 numBytes, int timeoutMs)
+    {
+        const auto endTime { juce::Time::getMillisecondCounter () + static_cast<juce::uint32> (timeoutMs) };
+        while (input.getTotalLength () < numBytes)
+        {
+            if (juce::Time::getMillisecondCounter () >= endTime)
+                return false;
+            juce::Thread::sleep (2);
+        }
+        return true;
+    }
+
+    juce::MemoryBlock readAll (SerialPortInputStream& input)
+    {
+        juce::MemoryBlock result;
+        char buffer [256];
+        for (auto numRead { input.read (buffer, sizeof (buffer)) }; numRead > 0; numRead = input.read (buffer, sizeof (buffer)))
+            result.append (buffer, static_cast<size_t> (numRead));
+        return result;
+    }
+
+    // the tests run on their own thread, while main () runs the message loop, which delivers the change notifications
+    bool waitUntil (std::function<bool ()> condition, int timeoutMs)
+    {
+        const auto endTime { juce::Time::getMillisecondCounter () + static_cast<juce::uint32> (timeoutMs) };
+        while (! condition ())
+        {
+            if (juce::Time::getMillisecondCounter () >= endTime)
+                return false;
+            juce::Thread::sleep (2);
+        }
+        return true;
+    }
+
+    //==============================================================================
+    void testFlush (Link& link, const Options& options)
+    {
+        section ("flush () and waitUntilSent ()");
+
+        Fixture fixture { link, options };
+        if (! fixture.isOpen ())
+        {
+            check (false, "the port opens");
+            return;
+        }
+
+        // slow callbacks, so flush returning before they have run would be caught
+        constexpr auto kNumWrites { 4 };
+        std::atomic<int> numCompleted { 0 };
+        const auto data { makeTestData (1024, 11) };
+        for (auto writeIndex { 0 }; writeIndex < kNumWrites; ++writeIndex)
+            fixture.output->write (data.getData (), data.getSize (), [&numCompleted] (bool)
+            {
+                juce::Thread::sleep (20);
+                ++numCompleted;
+            });
+        fixture.output->flush ();
+        check (numCompleted == kNumWrites, "flush returns after every completion callback has returned (" + juce::String (numCompleted.load ()) + " of " + juce::String (kNumWrites) + ")");
+        check (fixture.output->getNumBytesPending () == 0 && fixture.output->getNumBytesSent () == data.getSize () * kNumWrites, "and everything has been sent");
+
+        // from a completion callback, waiting for the callbacks would wait for itself
+        auto* output { fixture.output.get () };
+        std::atomic<bool> innerCalled { false };
+        std::atomic<bool> innerResult { false };
+        const auto startTicks { juce::Time::getHighResolutionTicks () };
+        output->write ("x", 1, [output, &innerCalled, &innerResult] (bool)
+        {
+            innerResult = output->waitUntilSent (2000);
+            innerCalled = true;
+        });
+        check (output->waitUntilSent (5000) && innerCalled.load () && innerResult.load (), "waitUntilSent called from a completion callback returns true");
+        check (ticksToMs (juce::Time::getHighResolutionTicks () - startTicks) < 1000.0, "without waiting for itself");
+    }
+
+    //==============================================================================
+    void testBulkPolling (Link& link, const Options& options)
+    {
+        section ("Polling reads of bulk data");
+
+        Fixture fixture { link, options };
+        if (! fixture.isOpen ())
+        {
+            check (false, "the port opens");
+            return;
+        }
+
+        const auto numBytes { static_cast<size_t> (link.echoes () ? 16384 : 262144) };
+        const auto data { makeTestData (numBytes, 12) };
+        auto sender { std::thread ([&] { sendToPort (link, fixture, data.getData (), data.getSize ()); }) };
+
+        // an odd size, so the reads don't line up with the stream's ring buffer
+        juce::MemoryBlock gathered;
+        char buffer [333];
+        const auto endTime { juce::Time::getMillisecondCounter () + static_cast<juce::uint32> (transferTimeMs (numBytes, options.bps) * (link.echoes () ? 2 : 1)) };
+        while (gathered.getSize () < numBytes && juce::Time::getMillisecondCounter () < endTime)
+        {
+            const auto numRead { fixture.input->read (buffer, sizeof (buffer)) };
+            if (numRead > 0)
+                gathered.append (buffer, static_cast<size_t> (numRead));
+            else
+                juce::Thread::sleep (1);
+        }
+        sender.join ();
+        check (gathered == data, juce::String (numBytes / 1024) + " KB read intact, 333 bytes at a time, while it was arriving");
+        check (fixture.input->isExhausted (), "then the stream is exhausted");
+    }
+
+    //==============================================================================
+    void testCanReadString (Link& link, const Options& options)
+    {
+        section ("canReadString ()");
+
+        Fixture fixture { link, options };
+        if (! fixture.isOpen ())
+        {
+            check (false, "the port opens");
+            return;
+        }
+
+        sendToPort (link, fixture, "abc");
+        waitForBuffered (*fixture.input, 3, 3000);
+        check (! fixture.input->canReadString (), "no string until its terminator arrives");
+
+        const char rest [] { '\0', 'd', 'e', 'f' };
+        sendToPort (link, fixture, rest, sizeof (rest));
+        waitForBuffered (*fixture.input, 7, 3000);
+        check (fixture.input->canReadString (), "a string once its terminator arrives");
+        char received [4] {};
+        check (fixture.input->read (received, 4) == 4 && std::memcmp (received, "abc", 4) == 0, "the string can be read");
+        check (! fixture.input->canReadString (), "no string in what is left");
+        check (readAll (*fixture.input) == juce::MemoryBlock ("def", 3), "the rest can be read");
+    }
+
+    //==============================================================================
+    void testCallbackAndBuffer (Link& link, const Options& options)
+    {
+        section ("Callback and buffer together");
+
+        Collector received;
+        Fixture fixture { link, options, [&received] (const void* data, int numBytes) { received.append (data, static_cast<size_t> (numBytes)); }, true };
+        if (! fixture.isOpen ())
+        {
+            check (false, "the port opens");
+            return;
+        }
+
+        const auto data { makeTestData (4096, 13) };
+        sendToPort (link, fixture, data.getData (), data.getSize ());
+        const auto timeoutMs { transferTimeMs (data.getSize (), options.bps) * (link.echoes () ? 2 : 1) };
+        check (received.waitForSize (data.getSize (), timeoutMs), "the callback received the data");
+        check (waitForBuffered (*fixture.input, static_cast<juce::int64> (data.getSize ()), timeoutMs), "and it was buffered too");
+        check (received.take () == data, "the callback's copy is intact");
+        check (readAll (*fixture.input) == data, "the buffered copy is intact");
+    }
+
+    //==============================================================================
+    void testNotifications (Link& link, const Options& options)
+    {
+        section ("Change notifications on the message thread");
+
+        struct Listener : public juce::ChangeListener
+        {
+            void changeListenerCallback (juce::ChangeBroadcaster*) override
+            {
+                ++numNotifications;
+                if (! juce::MessageManager::getInstance ()->isThisTheMessageThread ())
+                    ++numOffMessageThread;
+            }
+            std::atomic<int> numNotifications { 0 };
+            std::atomic<int> numOffMessageThread { 0 };
+        };
+        Listener listener;
+
+        Fixture fixture { link, options };
+        if (! fixture.isOpen ())
+        {
+            check (false, "the port opens");
+            return;
+        }
+        fixture.input->addChangeListener (&listener);
+
+        sendToPort (link, fixture, "off\n");
+        waitForBuffered (*fixture.input, 4, 3000);
+        juce::Thread::sleep (300);
+        check (listener.numNotifications == 0, "NOTIFY_OFF, the default, sends nothing");
+        readAll (*fixture.input);
+
+        fixture.input->setNotify (SerialPortInputStream::NOTIFY_ON_CHAR, '\n');
+        sendToPort (link, fixture, "abc");
+        waitForBuffered (*fixture.input, 3, 3000);
+        juce::Thread::sleep (300);
+        check (listener.numNotifications == 0, "NOTIFY_ON_CHAR sends nothing until the character arrives");
+        sendToPort (link, fixture, "def\n");
+        check (waitUntil ([&listener] { return listener.numNotifications > 0; }, 3000), "and a notification once it does");
+        check (fixture.input->readNextLine () == "abcdef", "the line can be read in the listener");
+
+        fixture.input->setNotify (SerialPortInputStream::NOTIFY_ALWAYS);
+        listener.numNotifications = 0;
+        sendToPort (link, fixture, "z");
+        check (waitUntil ([&listener] { return listener.numNotifications > 0; }, 3000), "NOTIFY_ALWAYS sends a notification for any data");
+        readAll (*fixture.input);
+
+        fixture.input->setNotify (SerialPortInputStream::NOTIFY_OFF);
+        juce::Thread::sleep (100);
+        listener.numNotifications = 0;
+        sendToPort (link, fixture, "q");
+        waitForBuffered (*fixture.input, 1, 3000);
+        juce::Thread::sleep (300);
+        check (listener.numNotifications == 0, "turning them off again stops them");
+        check (listener.numOffMessageThread == 0, "every notification arrived on the message thread");
+
+        fixture.input->removeChangeListener (&listener);
+    }
+
+    //==============================================================================
+    void testSwitchingModes (Link& link, const Options& options)
+    {
+        section ("Switching between callback and polling");
+
+        Collector first;
+        Collector second;
+        Collector third;
+        Fixture fixture { link, options, [&first] (const void* data, int numBytes) { first.append (data, static_cast<size_t> (numBytes)); } };
+        if (! fixture.isOpen ())
+        {
+            check (false, "the port opens");
+            return;
+        }
+
+        sendToPort (link, fixture, "one");
+        check (first.waitForSize (3, 3000) && first.take () == juce::MemoryBlock ("one", 3) && fixture.input->isExhausted (),
+               "callback only: the callback gets the data, and nothing is buffered");
+
+        fixture.input->setDataReceivedCallback (nullptr);
+        sendToPort (link, fixture, "two");
+        check (waitForBuffered (*fixture.input, 3, 3000) && readAll (*fixture.input) == juce::MemoryBlock ("two", 3) && first.getSize () == 0,
+               "no callback: the data is buffered for polling, and the old callback is not called");
+
+        fixture.input->setDataReceivedCallback ([&second] (const void* data, int numBytes) { second.append (data, static_cast<size_t> (numBytes)); }, true);
+        sendToPort (link, fixture, "three");
+        check (second.waitForSize (5, 3000) && waitForBuffered (*fixture.input, 5, 3000)
+               && second.take () == juce::MemoryBlock ("three", 5) && readAll (*fixture.input) == juce::MemoryBlock ("three", 5),
+               "a callback which also buffers: both get the data");
+
+        fixture.input->setDataReceivedCallback ([&third] (const void* data, int numBytes) { third.append (data, static_cast<size_t> (numBytes)); });
+        sendToPort (link, fixture, "four");
+        const auto thirdArrived { third.waitForSize (4, 3000) };
+        juce::Thread::sleep (100);
+        check (thirdArrived && third.take () == juce::MemoryBlock ("four", 4) && fixture.input->isExhausted () && second.getSize () == 0,
+               "back to callback only: only the new callback gets the data");
+    }
+
+    //==============================================================================
     void testConnectionLost (Link& link, const Options& options, bool interactive)
     {
         section (interactive ? "Unplugging the device" : "Connection lost");
@@ -584,6 +859,7 @@ namespace
 
         testConfig (link, options);
         testWriteCompletion (link, options);
+        testFlush (link, options);
         testDeleteWithPendingWrites (link, options);
         testWriteNeverBlocks (link, options);
 
@@ -591,11 +867,18 @@ namespace
         {
             testReceiveCallback (link, options);
             testPolling (link, options);
+            testBulkPolling (link, options);
+            testCanReadString (link, options);
+            testCallbackAndBuffer (link, options);
+            testNotifications (link, options);
+            testSwitchingModes (link, options);
         }
         else
         {
-            skip ("Receive callback", "needs a far end, or an echo device");
-            skip ("Polling reads", "needs a far end, or an echo device");
+            for (const auto* name : { "Receive callback", "Polling reads", "Polling reads of bulk data", "canReadString ()",
+                                      "Callback and buffer together", "Change notifications on the message thread",
+                                      "Switching between callback and polling" })
+                skip (name, "needs a far end, or an echo device");
         }
 
         if (link.hasFarEnd ())
@@ -630,14 +913,8 @@ namespace
     }
 }
 
-int main (int argc, char* argv[])
+static int runAllTests (const juce::StringArray& args)
 {
-    juce::ScopedJuceInitialiser_GUI juceInitialiser;
-
-    juce::StringArray args;
-    for (auto index { 1 }; index < argc; ++index)
-        args.add (juce::String::fromUTF8 (argv[index]));
-
     if (args.contains ("--help") || args.contains ("-h"))
     {
         printUsage ();
@@ -695,4 +972,36 @@ int main (int argc, char* argv[])
 
     std::cout << std::endl << numPassed << " passed, " << numFailed << " failed, " << numSkipped << " skipped" << std::endl;
     return numFailed == 0 ? 0 : 1;
+}
+
+int main (int argc, char* argv[])
+{
+    juce::ScopedJuceInitialiser_GUI juceInitialiser;
+
+    juce::StringArray args;
+    for (auto index { 1 }; index < argc; ++index)
+        args.add (juce::String::fromUTF8 (argv[index]));
+
+    // the tests run on their own thread, so this one can run the message loop, as in an app, and deliver the
+    // change notifications while the tests wait for them
+    class TestThread : public juce::Thread
+    {
+    public:
+        explicit TestThread (const juce::StringArray& testArgs) : Thread ("Tests"), args { testArgs } {}
+
+        void run () override
+        {
+            result = runAllTests (args);
+            juce::MessageManager::getInstance ()->stopDispatchLoop ();
+        }
+
+        juce::StringArray args;
+        std::atomic<int> result { 1 };
+    };
+
+    TestThread testThread { args };
+    testThread.startThread ();
+    juce::MessageManager::getInstance ()->runDispatchLoop ();
+    testThread.waitForThreadToExit (-1);
+    return testThread.result;
 }

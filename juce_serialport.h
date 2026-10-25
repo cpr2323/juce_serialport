@@ -259,8 +259,9 @@ public:
     bool write (const void* dataToWrite, size_t howManyBytes) override;
     // as above, and the callback is called when the data has been sent. if this returns false, the callback is never called
     bool write (const void* dataToWrite, size_t howManyBytes, WriteCompleteCallback onComplete);
-    // blocks until everything queued has been sent, the port has gone away, or the timeout expires (-1 waits forever).
-    // returns true if everything was sent
+    // blocks until everything queued has been sent, and its completion callbacks have returned, or the port has gone
+    // away, or the timeout expires (-1 waits forever). returns true if everything was sent. called from a completion
+    // callback, it does not wait for the callbacks running at the time
     bool waitUntilSent (int timeoutMs);
     // blocks until everything queued has been sent, or the port has gone away
     void flush () override { waitUntilSent (-1); }
@@ -292,6 +293,8 @@ private:
     std::atomic<juce::uint64> numBytesSent { 0 };
     // false once the writer thread has stopped, after which nothing more is queued
     bool acceptingWrites { true };
+    // completions taken off pendingCompletions, which the writer thread has not finished calling
+    size_t numCompletionsBeingCalled { 0 };
     juce::CriticalSection bufferCriticalSection;
     juce::WaitableEvent triggerWrite;
     juce::WaitableEvent sentEvent;

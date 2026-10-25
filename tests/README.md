@@ -49,10 +49,16 @@ SerialPortTests --write-only PORT       a port with nothing connected, only send
 |------|-----|------|------|------------|
 | configuration | yes (no parity, ptys ignore it) | yes | yes | yes |
 | write completion callbacks, order, thread | yes | yes | yes | yes |
+| flush () / waitUntilSent () wait for the completion callbacks, and work from inside one | yes | yes | yes | yes |
 | deleting a stream with writes pending | yes | yes | yes | yes |
 | write () never blocks, 1 kHz "sequencer" thread | yes | yes | yes | yes |
 | receive callback, latency, throughput | yes | yes | round trip | - |
 | polling reads, lines | yes | yes | yes | - |
+| polling reads of bulk data, in odd sized reads | yes | yes | yes | - |
+| canReadString () | yes | yes | yes | - |
+| a callback which also buffers (alsoBufferData) | yes | yes | yes | - |
+| change notifications on the message thread (NOTIFY_OFF, NOTIFY_ON_CHAR, NOTIFY_ALWAYS) | yes | yes | yes | - |
+| switching between callback only, polling, and both | yes | yes | yes | - |
 | both directions at once | yes | yes | - | - |
 | replacing the receive callback while data arrives | yes | yes | - | - |
 | connection lost | yes (hangs up the pty) | with --unplug | with --unplug | - |

@@ -367,7 +367,8 @@ void SerialPortOutputStream::run ()
     std::vector<WriteCompleteCallback> completed;
     completed.reserve (16);
 
-    // moves the callbacks of the writes which have been sent, so they can be called without holding the lock
+    // moves the callbacks of the writes which have been sent, so they can be called without holding the lock.
+    // called with the lock held
     auto collectCompleted = [this, &completed] ()
     {
         const auto sent { numBytesSent.load () };
@@ -375,13 +376,27 @@ void SerialPortOutputStream::run ()
         {
             completed.push_back (std::move (pendingCompletions.front ().callback));
             pendingCompletions.pop_front ();
+            ++numCompletionsBeingCalled;
         }
     };
-    auto callCompleted = [&completed] ()
+    // waitUntilSent waits for these to return, so a caller sees the callbacks of everything it waited for
+    auto finishedCalling = [this] (size_t numCalled)
+    {
+        if (numCalled == 0)
+            return;
+        {
+            const juce::ScopedLock sl { bufferCriticalSection };
+            numCompletionsBeingCalled -= numCalled;
+        }
+        sentEvent.signal ();
+    };
+    auto callCompleted = [&completed, &finishedCalling] ()
     {
         for (auto& callback : completed)
             callback (true);
+        const auto numCalled { completed.size () };
         completed.clear ();
+        finishedCalling (numCalled);
     };
 
     while (! threadShouldExit () && port->exists ())
@@ -426,10 +441,12 @@ void SerialPortOutputStream::run ()
         acceptingWrites = false;
         collectCompleted ();
         failed.swap (pendingCompletions);
+        numCompletionsBeingCalled += failed.size ();
     }
     callCompleted ();
     for (auto& pendingCompletion : failed)
         pendingCompletion.callback (false);
+    finishedCalling (failed.size ());
     sentEvent.signal ();
 }
 
@@ -471,15 +488,20 @@ bool SerialPortOutputStream::write (const void* dataToWrite, size_t howManyBytes
 
 bool SerialPortOutputStream::waitUntilSent (int timeoutMs)
 {
+    // from a completion callback, waiting for the callbacks being called would wait for itself
+    const auto onWriterThread { juce::Thread::getCurrentThread () == static_cast<juce::Thread*> (this) };
     const auto startTime { juce::Time::getMillisecondCounter () };
     for (;;)
     {
         {
             const juce::ScopedLock sl { bufferCriticalSection };
-            if (buffer.size () == 0 && pendingCompletions.empty ())
-                return true;
-            if (! acceptingWrites)
-                return false;
+            if (onWriterThread || numCompletionsBeingCalled == 0)
+            {
+                if (buffer.size () == 0 && pendingCompletions.empty ())
+                    return true;
+                if (! acceptingWrites)
+                    return false;
+            }
         }
 
         auto waitTime { 100 };
