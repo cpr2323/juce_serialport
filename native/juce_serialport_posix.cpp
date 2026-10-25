@@ -213,6 +213,9 @@ void SerialPort::close ()
     if (native->fd != -1)
     {
         DebugLog ("SerialPort::close", "closing port:" + portPath);
+        // exclusive mode belongs to the tty, not the descriptor, and outlives the close if anything else still has the
+        // device open (a pseudo terminal's master, for example), which would stop the port being opened again
+        ioctl (native->fd, TIOCNXCL);
         ::close (native->fd);
         native->fd = -1;
     }
@@ -224,6 +227,7 @@ bool SerialPort::open (const juce::String& newPortPath)
 
     portPath = newPortPath;
     connectionLost = false;
+    configuredBps = 0;
    #if JUCE_MAC
     native->customBps = 0;
    #endif
@@ -413,6 +417,7 @@ bool SerialPort::setConfig (const SerialPortConfig& config)
     }
    #endif
 
+    configuredBps = config.bps;
     return true;
 }
 

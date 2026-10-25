@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<JUCERPROJECT name="SerialTerminal" projectType="guiapp" useAppConfig="0" addUsingNamespaceToJuceHeader="0"
+              jucerFormatVersion="1" version="1.0.0" companyName="om ohm productions"
+              bundleIdentifier="com.omohmproductions.serialterminal" id="SrlTrm"
+              displaySplashScreen="0" defines="JUCE_USE_CURL=0&#10;JUCE_WEB_BROWSER=0">
+  <MAINGROUP id="SrlTrmMain" name="SerialTerminal">
+    <GROUP id="SrlTrmSrc" name="Source">
+      <FILE id="SrlTrmMn" name="Main.cpp" compile="1" resource="0" file="Source/Main.cpp"/>
+      <FILE id="SrlTrmMcc" name="MainComponent.cpp" compile="1" resource="0"
+            file="Source/MainComponent.cpp"/>
+      <FILE id="SrlTrmMch" name="MainComponent.h" compile="0" resource="0"
+            file="Source/MainComponent.h"/>
+    </GROUP>
+  </MAINGROUP>
+  <EXPORTFORMATS>
+    <ANDROIDSTUDIO targetFolder="Builds/Android" androidMinimumSDK="24" androidTargetSDK="35"
+                   androidAdditionalJavaFolders="../..&#10;../../submodules/usb-serial-for-android/usbSerialForAndroid/src/main/java"
+                   androidDependencies="implementation 'androidx.annotation:annotation:1.9.1'"
+                   androidManifestCustomXmlElements="&lt;manifest&gt;&lt;uses-feature android:name=&quot;android.hardware.usb.host&quot; android:required=&quot;true&quot;/&gt;&lt;/manifest&gt;">
+      <CONFIGURATIONS>
+        <CONFIGURATION isDebug="1" name="Debug" recommendedWarnings="LLVM"/>
+        <CONFIGURATION isDebug="0" name="Release" recommendedWarnings="LLVM"/>
+      </CONFIGURATIONS>
+      <MODULEPATHS>
+        <MODULEPATH id="juce_core" path="../../../JUCE/modules"/>
+        <MODULEPATH id="juce_data_structures" path="../../../JUCE/modules"/>
+        <MODULEPATH id="juce_events" path="../../../JUCE/modules"/>
+        <MODULEPATH id="juce_graphics" path="../../../JUCE/modules"/>
+        <MODULEPATH id="juce_gui_basics" path="../../../JUCE/modules"/>
+        <MODULEPATH id="juce_serialport" path="../../.."/>
+      </MODULEPATHS>
+    </ANDROIDSTUDIO>
+  </EXPORTFORMATS>
+  <MODULES>
+    <MODULE id="juce_core" showAllCode="1" useLocalCopy="0" useGlobalPath="0"/>
+    <MODULE id="juce_data_structures" showAllCode="1" useLocalCopy="0" useGlobalPath="0"/>
+    <MODULE id="juce_events" showAllCode="1" useLocalCopy="0" useGlobalPath="0"/>
+    <MODULE id="juce_graphics" showAllCode="1" useLocalCopy="0" useGlobalPath="0"/>
+    <MODULE id="juce_gui_basics" showAllCode="1" useLocalCopy="0" useGlobalPath="0"/>
+    <MODULE id="juce_serialport" showAllCode="0" useLocalCopy="0" useGlobalPath="0"/>
+  </MODULES>
+  <JUCEOPTIONS/>
+</JUCERPROJECT>

@@ -112,6 +112,7 @@ bool SerialPort::open (const juce::String& newPortPath)
 
     portPath = newPortPath;
     connectionLost = false;
+    configuredBps = 0;
 
     if (native->readEvent == nullptr || native->writeEvent == nullptr)
     {
@@ -146,6 +147,8 @@ bool SerialPort::open (const juce::String& newPortPath)
         return false;
     }
 
+    // discard anything received before the port was opened, as tcflush does on the other platforms
+    PurgeComm (native->handle, PURGE_RXCLEAR | PURGE_TXCLEAR);
     DWORD commErrors { 0 };
     ClearCommError (native->handle, &commErrors, nullptr);
 
@@ -235,6 +238,7 @@ bool SerialPort::setConfig (const SerialPortConfig& config)
         DebugLog ("SerialPort::setConfig", "SetCommState failed, error: " + juce::String (GetLastError ()));
         return false;
     }
+    configuredBps = config.bps;
     return true;
 }
 

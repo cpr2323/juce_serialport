@@ -127,6 +127,7 @@ bool SerialPort::open (const juce::String& newPortPath)
 
     portPath = newPortPath;
     connectionLost = false;
+    configuredBps = 0;
 
     auto* env { juce::getEnv () };
     juce::LocalRef<jobject> helper { env->NewObject (UsbSerialHelper, UsbSerialHelper.constructor, juce::getAppContext ().get (), juce::getMainActivity ().get ()) };
@@ -190,7 +191,10 @@ bool SerialPort::setConfig (const SerialPortConfig& config)
 
     const auto result { env->CallBooleanMethod (native->helper.get (), UsbSerialHelper.setParameters,
                                                 static_cast<jint> (config.bps), static_cast<jint> (config.databits), stopBits, parity) };
-    return ! exceptionOccurred (env) && result;
+    if (exceptionOccurred (env) || ! result)
+        return false;
+    configuredBps = config.bps;
+    return true;
 }
 
 bool SerialPort::getConfig (SerialPortConfig& config)
