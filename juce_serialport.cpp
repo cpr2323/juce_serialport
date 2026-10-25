@@ -25,6 +25,8 @@
  #include <windows.h>
 #elif JUCE_MAC || JUCE_LINUX || JUCE_BSD
  #include <cerrno>
+ #include <climits>
+ #include <cstdlib>
  #include <fcntl.h>
  #include <poll.h>
  #include <sys/ioctl.h>

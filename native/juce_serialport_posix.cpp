@@ -175,15 +175,27 @@ juce::StringPairArray SerialPort::getSerialPortPaths ()
         if (! juce::File (devicePath).exists ())
             continue;
 
-        // for USB devices, the product name is in a parent of the device directory
+        // for USB devices, the USB device's directory (the one with idVendor) is an ancestor of the device directory,
+        // which is the interface (ttyACM), or the port below it (ttyUSB). stop there, as further up are the hubs and
+        // the host controller, which have product names too
         juce::String productName;
-        auto parentDir { deviceDir.getLinkedTarget () };
-        for (auto level { 0 }; level < 4 && productName.isEmpty () && parentDir.exists (); ++level)
+        char resolvedPath [PATH_MAX];
+        if (realpath (deviceDir.getFullPathName ().toRawUTF8 (), resolvedPath) != nullptr)
         {
-            const auto productFile { parentDir.getChildFile ("product") };
-            if (productFile.existsAsFile ())
-                productName = productFile.loadFileAsString ().trim ();
-            parentDir = parentDir.getParentDirectory ();
+            auto usbDeviceDir { juce::File (juce::String::fromUTF8 (resolvedPath)) };
+            for (auto level { 0 }; level < 3 && ! usbDeviceDir.getChildFile ("idVendor").existsAsFile (); ++level)
+                usbDeviceDir = usbDeviceDir.getParentDirectory ();
+
+            if (usbDeviceDir.getChildFile ("idVendor").existsAsFile ())
+            {
+                auto readAttribute = [&usbDeviceDir] (const char* name) { return usbDeviceDir.getChildFile (name).loadFileAsString ().trim (); };
+                // not every device has a product string (an Arduino Uno only has a manufacturer)
+                productName = readAttribute ("product");
+                if (productName.isEmpty ())
+                    productName = readAttribute ("manufacturer");
+                if (productName.isEmpty ())
+                    productName = readAttribute ("idVendor") + ":" + readAttribute ("idProduct");
+            }
         }
 
         const auto friendlyName { productName.isNotEmpty () ? ttyDir.getFileName () + " (" + productName + ")" : ttyDir.getFileName () };

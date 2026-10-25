@@ -77,7 +77,8 @@ device (an Arduino, a USB serial adapter) can be passed through with [usbipd-win
    usbipd list
    usbipd bind --busid 1-4
    ```
-3. Attach it to WSL (no administrator needed after bind). While attached, Windows can't use it:
+3. Attach it to WSL (no administrator needed after bind). While attached, Windows can't use it. WSL must be running,
+   so keep a WSL terminal open, otherwise attach fails with "There is no WSL 2 distribution running":
    ```
    usbipd attach --wsl --busid 1-4
    ```
@@ -87,6 +88,7 @@ device (an Arduino, a USB serial adapter) can be passed through with [usbipd-win
    sudo usermod -aG dialout $USER
    ```
 5. `usbipd detach --busid 1-4` gives it back to Windows. Detaching while `SerialPortTests --echo /dev/ttyACM0 --unplug`
-   is waiting is a good way to test unplugging.
+   is waiting tests unplugging, without touching the cable. The device must be attached again after unplugging, or
+   after WSL restarts.
 
 A motherboard COM port can't be passed to WSL 2.
