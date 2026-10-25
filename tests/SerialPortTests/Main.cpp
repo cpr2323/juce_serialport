@@ -92,9 +92,9 @@ namespace
             if (usesCallback)
             {
                 // the test's callback only sees data which arrives once the fixture is ready
-                input = std::make_unique<SerialPortInputStream> (&port, [ready = ready, testCallback = std::move (callback)] (const void* data, int numBytes)
+                input = std::make_unique<SerialPortInputStream> (&port, [isReady = ready, testCallback = std::move (callback)] (const void* data, int numBytes)
                 {
-                    if (ready->load ())
+                    if (isReady->load ())
                         testCallback (data, numBytes);
                 }, alsoBuffer);
             }
@@ -727,7 +727,11 @@ namespace
             check (false, "the port opens");
             return;
         }
-        fixture.input->addChangeListener (&listener);
+        // listeners are added and removed on the message thread, or with it locked
+        {
+            const juce::MessageManagerLock messageManagerLock;
+            fixture.input->addChangeListener (&listener);
+        }
 
         sendToPort (link, fixture, "off\n");
         waitForBuffered (*fixture.input, 4, 3000);
@@ -759,7 +763,10 @@ namespace
         check (listener.numNotifications == 0, "turning them off again stops them");
         check (listener.numOffMessageThread == 0, "every notification arrived on the message thread");
 
-        fixture.input->removeChangeListener (&listener);
+        {
+            const juce::MessageManagerLock messageManagerLock;
+            fixture.input->removeChangeListener (&listener);
+        }
     }
 
     //==============================================================================
@@ -1001,7 +1008,14 @@ int main (int argc, char* argv[])
 
     TestThread testThread { args };
     testThread.startThread ();
+   #if JUCE_MAC
+    // in a console program on macOS, runDispatchLoop returns at once, as there is no Cocoa application for it to run,
+    // so the run loop is pumped directly (which needs JUCE_MODAL_LOOPS_PERMITTED, see CMakeLists.txt)
+    while (testThread.isThreadRunning ())
+        juce::MessageManager::getInstance ()->runDispatchLoopUntil (20);
+   #else
     juce::MessageManager::getInstance ()->runDispatchLoop ();
+   #endif
     testThread.waitForThreadToExit (-1);
     return testThread.result;
 }

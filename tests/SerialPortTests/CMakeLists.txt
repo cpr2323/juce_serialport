@@ -20,6 +20,11 @@ target_link_libraries (SerialPortTests
         juce::juce_recommended_config_flags
         juce::juce_recommended_warning_flags)
 
+# on macOS the console app pumps the message loop with runDispatchLoopUntil, see main ()
+if (APPLE)
+    target_compile_definitions (SerialPortTests PRIVATE JUCE_MODAL_LOOPS_PERMITTED=1)
+endif ()
+
 # openpty
 if (CMAKE_SYSTEM_NAME STREQUAL "Linux")
     target_link_libraries (SerialPortTests PRIVATE util)

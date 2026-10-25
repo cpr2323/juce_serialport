@@ -66,6 +66,11 @@ while (input.canReadLine ())
 input.addChangeListener (this);
 input.setNotify (SerialPortInputStream::NOTIFY_ON_CHAR, '\n');
 ```
+The notification needs a running message loop. GUI apps and plugins have one. In a console program, run
+`MessageManager::runDispatchLoop ()` on the main thread (with the work on another thread), except on macOS: there it
+returns at once in a console program, so call `runDispatchLoopUntil ()` in a loop instead, which needs
+`JUCE_MODAL_LOOPS_PERMITTED=1` (see `tests/SerialPortTests/Main.cpp`).
+
 With a callback the data is not buffered, unless `alsoBufferData` is true. `setDataReceivedCallback ()` changes the
 callback at any time, and once it returns the old callback is not running and won't be called again.
 

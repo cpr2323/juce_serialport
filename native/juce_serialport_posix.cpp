@@ -105,6 +105,18 @@ namespace
         return 0;
     }
    #endif
+
+   #if JUCE_MAC
+    // the rates <termios.h> defines on macOS
+    bool isMacStandardRate (uint32_t bps)
+    {
+        for (const uint32_t standardBps : { 50u, 75u, 110u, 134u, 150u, 200u, 300u, 600u, 1200u, 1800u, 2400u, 4800u, 7200u, 9600u,
+                                            14400u, 19200u, 28800u, 38400u, 57600u, 76800u, 115200u, 230400u })
+            if (standardBps == bps)
+                return true;
+        return false;
+    }
+   #endif
 }
 
 #if JUCE_MAC
@@ -373,8 +385,16 @@ bool SerialPort::setConfig (const SerialPortConfig& config)
     }
 
    #if JUCE_MAC
-    // IOSSIOSPEED, below, sets the actual rate, which can be any value. tcsetattr needs a valid one, so use 9600
-    cfsetspeed (&options, B9600);
+    // rates termios knows are set with it (speed_t is the rate itself on macOS). other rates are set with IOSSIOSPEED,
+    // below, which only real serial drivers support (not a pseudo terminal, for example), and tcsetattr is given 9600
+    auto useIossiospeed { ! isMacStandardRate (config.bps) };
+    cfsetspeed (&options, useIossiospeed ? B9600 : static_cast<speed_t> (config.bps));
+    // a driver which rejects a standard rate through termios may still take it through IOSSIOSPEED
+    if (! useIossiospeed && tcsetattr (native->fd, TCSANOW, &options) == -1)
+    {
+        useIossiospeed = true;
+        cfsetspeed (&options, B9600);
+    }
    #elif JUCE_LINUX
     const auto standardSpeed { getStandardSpeed (config.bps) };
     #if ! JUCE_SERIALPORT_HAS_TERMIOS2
@@ -401,13 +421,17 @@ bool SerialPort::setConfig (const SerialPortConfig& config)
     }
 
    #if JUCE_MAC
-    speed_t speed { static_cast<speed_t> (config.bps) };
-    if (ioctl (native->fd, IOSSIOSPEED, &speed) == -1)
+    native->customBps = 0;
+    if (useIossiospeed)
     {
-        DebugLog ("SerialPort::setConfig", "can't set baud rate: " + juce::String (config.bps) + ", errno: " + juce::String (errno));
-        return false;
+        speed_t speed { static_cast<speed_t> (config.bps) };
+        if (ioctl (native->fd, IOSSIOSPEED, &speed) == -1)
+        {
+            DebugLog ("SerialPort::setConfig", "can't set baud rate: " + juce::String (config.bps) + ", errno: " + juce::String (errno));
+            return false;
+        }
+        native->customBps = config.bps;
     }
-    native->customBps = config.bps;
    #elif JUCE_LINUX && JUCE_SERIALPORT_HAS_TERMIOS2
     if (standardSpeed == B0)
     {
