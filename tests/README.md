@@ -30,8 +30,8 @@ that the module builds and the app runs with no ports.
 
 ### Android
 Open `SerialTerminal/SerialTerminal.jucer` in the Projucer (or `Projucer --resave SerialTerminal.jucer`), and open
-`SerialTerminal/Builds/Android` in Android Studio. Run `git submodule update --init` in the module's repository first,
-for usb-serial-for-android. The project expects JUCE at `../../../JUCE` (light_plug's layout); change the module paths
+`SerialTerminal/Builds/Android` in Android Studio. Run `git submodule update --init submodules/usb-serial-for-android`
+in the module's repository first. The project expects JUCE at `../../../JUCE` (light_plug's layout); change the module paths
 in the Projucer otherwise. Connect a USB serial device to the phone with an OTG adapter; the app asks for permission
 the first time the port is opened, then Open again once permission is granted.
 
@@ -74,13 +74,22 @@ the settings. `daisy_echo` is a USB CDC device, and the host's driver sends it t
 parity, stop bits) and the DTR and RTS lines as USB requests, which it records and reports when asked. The test sends
 the request in band (`F5 5A A5 0F 'S'`), so it is echoed like any other data, followed by the reply.
 
-Build it with the [Daisy toolchain](https://github.com/electro-smith/DaisyWiki/wiki/1.-Setting-Up-Your-Development-Environment)
-and a built [libDaisy](https://github.com/electro-smith/libDaisy) (`make` in libDaisy, after `git submodule update --init`):
+Build it with the [Daisy toolchain](https://github.com/electro-smith/DaisyWiki/wiki/1.-Setting-Up-Your-Development-Environment).
+[libDaisy](https://github.com/electro-smith/libDaisy) is a submodule of this module, in `submodules/libDaisy`, and has
+to be fetched, with the submodules it needs, and built first (from the module's folder):
 ```
-cd daisy_echo
-make LIBDAISY_DIR=/path/to/libDaisy APP_TYPE=BOOT_SRAM
-make LIBDAISY_DIR=/path/to/libDaisy APP_TYPE=BOOT_SRAM program-dfu
+git submodule update --init submodules/libDaisy
+cd submodules/libDaisy
+git submodule update --init --depth 1 Drivers/CMSIS-DSP Drivers/CMSIS_5 Drivers/CMSIS-Device/ST/STM32H7xx Drivers/STM32H7xx_HAL_Driver Middlewares/ST/STM32_USB_Device_Library
+make
 ```
+then
+```
+cd tests/daisy_echo
+make APP_TYPE=BOOT_SRAM
+make APP_TYPE=BOOT_SRAM program-dfu
+```
+`LIBDAISY_DIR=/path/to/libDaisy` uses another libDaisy instead.
 `APP_TYPE=BOOT_SRAM` is for a Seed with the Daisy bootloader (`dfu-util -l` shows `@Flash /0x90000000...`). For the
 STM32 ROM bootloader (hold BOOT, press RESET, `dfu-util -l` shows `@Internal Flash`), leave `APP_TYPE` out. Then run
 `SerialPortTests --daisy COMx` (`/dev/ttyACM0` on Linux, `/dev/cu.usbmodem...` on macOS). The Seed's LED is on while

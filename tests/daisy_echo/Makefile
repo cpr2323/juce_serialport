@@ -1,13 +1,13 @@
 # firmware for a Daisy Seed, for SerialPortTests --daisy, see tests/README.md
-#   make LIBDAISY_DIR=/path/to/libDaisy
+#   make
 #   make program-dfu                         the STM32 ROM bootloader (hold BOOT, press RESET)
 #   make APP_TYPE=BOOT_SRAM program-dfu      the Daisy bootloader
 TARGET = daisy_echo
 
 CPP_SOURCES = daisy_echo.cpp
 
-# a built libDaisy, by default alongside this module
-LIBDAISY_DIR ?= ../../../libDaisy
+# a built libDaisy, by default the module's submodule
+LIBDAISY_DIR ?= ../../submodules/libDaisy
 
 # the CDC class, to see the requests the host sends (libDaisy 8 moved it to Middlewares/Patched)
 C_INCLUDES = \

@@ -1086,7 +1086,7 @@ namespace
         }
 
         state = queryDevice (*fixture);
-        check (state.numOverflows == 0, "the device's receive buffer never overflowed");
+        check (state.numOverflows == 0, "the device's receive buffer never overflowed while the port was open");
 
         // closing the port drops DTR, which tells a device the application has gone
         const auto dtrDropsBefore { state.numDtrDrops };

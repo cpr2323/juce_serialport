@@ -32,7 +32,7 @@ Add the module folder with the module manager.
 ### Android
 The Android implementation needs two sets of Java sources in the app:
 - `com/artiphon/juce_serial/UsbSerialHelper.java`, from this module
-- the usb-serial-for-android library (`submodules/usb-serial-for-android`, run `git submodule update --init` in this repository)
+- the usb-serial-for-android library (`submodules/usb-serial-for-android`, run `git submodule update --init submodules/usb-serial-for-android` in this repository)
 
 With the Projucer, add this module's folder to the Android exporter's "Java Source code folders" and add the
 usb-serial-for-android library as a Gradle dependency, or add its `usbSerialForAndroid/src/main/java` folder to the

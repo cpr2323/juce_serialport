@@ -222,11 +222,13 @@ int main (void)
     uint32_t lastActivityMs { 0 };
     for (;;)
     {
-        // a new connection, forget whatever the last one sent which was never read
+        // a new connection, forget whatever the last one sent which was never read. the overflow count is per
+        // connection too, as tests which flood the device and close the port without reading the echo overflow it
         if (dtrRaised)
         {
             dtrRaised = false;
             fifoRead = fifoWrite;
+            numOverflows = 0;
             prefixMatched = 0;
             awaitingCommand = false;
         }
