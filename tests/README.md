@@ -5,6 +5,7 @@
 | `SerialPortTests` | console app, automated functional tests | Windows, macOS, Linux |
 | `SerialTerminal` | GUI serial terminal, with an echo test and a throughput (flood) mode | Windows, macOS, Linux, iOS (CMake), Android (Projucer) |
 | `arduino_echo` | Arduino sketch which echoes everything back, for hardware tests | any Arduino |
+| `daisy_echo` | Daisy Seed firmware which echoes everything back, and reports the line settings and control lines it receives | Daisy Seed |
 
 ## Building (Windows, macOS, Linux)
 ```
@@ -39,15 +40,19 @@ the first time the port is opened, then Open again once permission is granted.
 SerialPortTests                         macOS/Linux: everything, over a pseudo terminal pair. Windows: just lists the ports
 SerialPortTests --pair PORT1 PORT2      two ports connected to each other
 SerialPortTests --echo PORT             a device running arduino_echo
+SerialPortTests --daisy PORT            a Daisy Seed running daisy_echo, as --echo plus the line settings tests
 SerialPortTests --write-only PORT       a port with nothing connected, only sending is tested
   --baud N                              default 115200, must match arduino_echo's rate in --echo mode
   --unplug                              with --pair or --echo, finish by asking you to unplug the device
   --list                                list the ports
 ```
 
+`--daisy` runs everything `--echo` does.
+
 | Test | pty | pair | echo | write only |
 |------|-----|------|------|------------|
 | configuration | yes (no parity, ptys ignore it) | yes | yes | yes |
+| the rate, data bits, parity, stop bits, DTR and RTS the device receives, flow control, DTR dropping on close | - | - | `--daisy` only | - |
 | write completion callbacks, order, thread | yes | yes | yes | yes |
 | flush () / waitUntilSent () wait for the completion callbacks, and work from inside one | yes | yes | yes | yes |
 | deleting a stream with writes pending | yes | yes | yes | yes |
@@ -62,6 +67,24 @@ SerialPortTests --write-only PORT       a port with nothing connected, only send
 | both directions at once | yes | yes | - | - |
 | replacing the receive callback while data arrives | yes | yes | - | - |
 | connection lost | yes (hangs up the pty) | with --unplug | with --unplug | - |
+
+### Daisy Seed
+A real UART never tells you what it was configured with, so the other modes can only check that the driver accepted
+the settings. `daisy_echo` is a USB CDC device, and the host's driver sends it the line coding (rate, data bits,
+parity, stop bits) and the DTR and RTS lines as USB requests, which it records and reports when asked. The test sends
+the request in band (`F5 5A A5 0F 'S'`), so it is echoed like any other data, followed by the reply.
+
+Build it with the [Daisy toolchain](https://github.com/electro-smith/DaisyWiki/wiki/1.-Setting-Up-Your-Development-Environment)
+and a built [libDaisy](https://github.com/electro-smith/libDaisy) (`make` in libDaisy, after `git submodule update --init`):
+```
+cd daisy_echo
+make LIBDAISY_DIR=/path/to/libDaisy APP_TYPE=BOOT_SRAM
+make LIBDAISY_DIR=/path/to/libDaisy APP_TYPE=BOOT_SRAM program-dfu
+```
+`APP_TYPE=BOOT_SRAM` is for a Seed with the Daisy bootloader (`dfu-util -l` shows `@Flash /0x90000000...`). For the
+STM32 ROM bootloader (hold BOOT, press RESET, `dfu-util -l` shows `@Internal Flash`), leave `APP_TYPE` out. Then run
+`SerialPortTests --daisy COMx` (`/dev/ttyACM0` on Linux, `/dev/cu.usbmodem...` on macOS). The Seed's LED is on while
+the port is open (DTR), and flickers with data. Add `--unplug` to finish by unplugging it.
 
 ### What to use on each platform
 - **macOS, Linux**: run it with no arguments, no hardware needed. Then `--echo` with an Arduino, plus `--unplug`, to

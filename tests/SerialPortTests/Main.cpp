@@ -852,6 +852,252 @@ namespace
     }
 
     //==============================================================================
+    // what tests/daisy_echo reports, the raw CDC values (see daisy_echo.cpp)
+    struct DeviceState
+    {
+        bool valid { false };
+        uint32_t rate { 0 };
+        int dataBits { 0 };
+        int parity { 0 };   // 0 none, 1 odd, 2 even, 3 mark, 4 space
+        int stopBits { 0 }; // 0 = 1, 1 = 1.5, 2 = 2
+        bool dtr { false };
+        bool rts { false };
+        int numDtrDrops { 0 };
+        int numOverflows { 0 };
+
+        juce::String describe () const
+        {
+            if (! valid)
+                return "no reply";
+            return juce::String (rate) + " " + juce::String (dataBits) + juce::String::charToString ("NOEMS"[juce::jlimit (0, 4, parity)])
+                 + juce::StringArray { "1", "1.5", "2" }[juce::jlimit (0, 2, stopBits)] + ", DTR " + (dtr ? "on" : "off") + ", RTS " + (rts ? "on" : "off");
+        }
+    };
+
+    const uint8_t kDeviceCommandPrefix[] { 0xF5, 0x5A, 0xA5, 0x0F };
+
+    void sendDeviceCommand (Fixture& fixture, char command)
+    {
+        uint8_t message[5];
+        std::memcpy (message, kDeviceCommandPrefix, 4);
+        message[4] = static_cast<uint8_t> (command);
+        fixture.output->write (message, sizeof (message));
+    }
+
+    // the fixture must be polling, ie. have no receive callback
+    DeviceState queryDevice (Fixture& fixture)
+    {
+        sendDeviceCommand (fixture, 'S');
+
+        // the echoed command comes first, then the reply
+        juce::MemoryBlock received;
+        const auto endTime { juce::Time::getMillisecondCounter () + 2000 };
+        juce::String line;
+        while (juce::Time::getMillisecondCounter () < endTime)
+        {
+            char buffer [256];
+            const auto numRead { fixture.input->read (buffer, sizeof (buffer)) };
+            if (numRead > 0)
+                received.append (buffer, static_cast<size_t> (numRead));
+            else
+                juce::Thread::sleep (2);
+
+            // the echoed prefix isn't valid UTF-8, so search the raw bytes
+            const std::string text { static_cast<const char*> (received.getData ()), received.getSize () };
+            const auto start { text.find ("\x02STATE ") };
+            const auto end { start != std::string::npos ? text.find ('\n', start) : std::string::npos };
+            if (end != std::string::npos)
+            {
+                line = juce::String (text.substr (start + 7, end - start - 7));
+                break;
+            }
+        }
+
+        DeviceState state;
+        juce::StringPairArray values;
+        for (const auto& token : juce::StringArray::fromTokens (line, " ", ""))
+            values.set (token.upToFirstOccurrenceOf ("=", false, false), token.fromFirstOccurrenceOf ("=", false, false));
+        state.valid = values.containsKey ("rate");
+        state.rate = static_cast<uint32_t> (values["rate"].getLargeIntValue ());
+        state.dataBits = values["data"].getIntValue ();
+        state.parity = values["parity"].getIntValue ();
+        state.stopBits = values["stop"].getIntValue ();
+        state.dtr = values["dtr"] == "1";
+        state.rts = values["rts"] == "1";
+        state.numDtrDrops = values["dtrdrops"].getIntValue ();
+        state.numOverflows = values["overflows"].getIntValue ();
+        return state;
+    }
+
+    bool containsByte (const juce::MemoryBlock& block, uint8_t byte)
+    {
+        return block.getSize () > 0 && std::memchr (block.getData (), byte, block.getSize ()) != nullptr;
+    }
+
+    // sends data through the echo device, and returns how long it took to come back, or -1 if it didn't
+    double echoTimeMs (Fixture& fixture, const juce::MemoryBlock& data, int timeoutMs)
+    {
+        readAll (*fixture.input);
+        const auto startTicks { juce::Time::getHighResolutionTicks () };
+        fixture.output->write (data.getData (), data.getSize ());
+        if (! waitForBuffered (*fixture.input, static_cast<juce::int64> (data.getSize ()), timeoutMs))
+            return -1.0;
+        const auto elapsedMs { ticksToMs (juce::Time::getHighResolutionTicks () - startTicks) };
+        return readAll (*fixture.input) == data ? elapsedMs : -1.0;
+    }
+
+    void testDeviceLineState (Link& link, const Options& options)
+    {
+        section ("Line settings and control lines, as the device sees them");
+
+        auto fixture { std::make_unique<Fixture> (link, options) };
+        if (! fixture->isOpen ())
+        {
+            check (false, "the port opens");
+            return;
+        }
+
+        auto state { queryDevice (*fixture) };
+        check (state.valid, "the device reports its state (" + state.describe () + ")");
+        if (! state.valid)
+            return;
+        check (state.rate == options.bps && state.dataBits == 8 && state.parity == 0 && state.stopBits == 0, "opening the port sent " + juce::String (options.bps) + " 8N1");
+        check (state.dtr && state.rts, "DTR and RTS are on");
+
+        // the rate is passed through as a number, so a CDC device sees any rate, standard or not
+        juce::StringArray rateFailures;
+        for (const uint32_t bps : { 300u, 1200u, 9600u, 31250u, 57600u, 115200u, 230400u, 250000u, 460800u, 921600u,
+                                    1000000u, 2000000u, 3000000u, 12345u })
+        {
+            SerialPortConfig config;
+            config.bps = bps;
+            SerialPortConfig readBack;
+            const auto set { fixture->port.setConfig (config) && fixture->port.getConfig (readBack) && readBack.bps == bps };
+            state = queryDevice (*fixture);
+            if (! set || state.rate != bps)
+                rateFailures.add (juce::String (bps) + (set ? "" : " (setConfig)") + " -> " + state.describe ());
+        }
+        check (rateFailures.isEmpty (), "14 rates, from 300 to 3000000 and 12345, reach the device" + (rateFailures.isEmpty () ? juce::String () : ": " + rateFailures.joinIntoString (", ")));
+
+        // every data bits, parity and stop bits combination. 1.5 stop bits is only valid with 5 data bits
+        struct Framing { uint32_t dataBits; SerialPortConfig::SerialPortParity parity; SerialPortConfig::SerialPortStopBits stopBits; int cdcParity; int cdcStopBits; };
+        const SerialPortConfig::SerialPortParity parities[] { SerialPortConfig::SERIALPORT_PARITY_NONE, SerialPortConfig::SERIALPORT_PARITY_ODD,
+                                                              SerialPortConfig::SERIALPORT_PARITY_EVEN, SerialPortConfig::SERIALPORT_PARITY_MARK,
+                                                              SerialPortConfig::SERIALPORT_PARITY_SPACE };
+        std::vector<Framing> framings;
+        for (const uint32_t dataBits : { 5u, 6u, 7u, 8u })
+            for (auto parityIndex { 0 }; parityIndex < 5; ++parityIndex)
+            {
+                framings.push_back ({ dataBits, parities[parityIndex], SerialPortConfig::STOPBITS_1, parityIndex, 0 });
+                framings.push_back ({ dataBits, parities[parityIndex], SerialPortConfig::STOPBITS_2, parityIndex, 2 });
+            }
+        for (auto parityIndex { 0 }; parityIndex < 5; ++parityIndex)
+            framings.push_back ({ 5u, parities[parityIndex], SerialPortConfig::STOPBITS_1ANDHALF, parityIndex, 1 });
+
+        juce::StringArray framingFailures;
+        for (const auto& framing : framings)
+        {
+            SerialPortConfig config { options.bps, framing.dataBits, framing.parity, framing.stopBits, SerialPortConfig::FLOWCONTROL_NONE };
+            SerialPortConfig readBack;
+            const auto set { fixture->port.setConfig (config) && fixture->port.getConfig (readBack)
+                             && readBack.databits == framing.dataBits && readBack.parity == framing.parity && readBack.stopbits == framing.stopBits };
+            state = queryDevice (*fixture);
+            if (! set || state.dataBits != static_cast<int> (framing.dataBits) || state.parity != framing.cdcParity || state.stopBits != framing.cdcStopBits)
+            {
+                DeviceState wanted;
+                wanted.valid = true;
+                wanted.rate = options.bps;
+                wanted.dataBits = static_cast<int> (framing.dataBits);
+                wanted.parity = framing.cdcParity;
+                wanted.stopBits = framing.cdcStopBits;
+                framingFailures.add (wanted.describe ().upToFirstOccurrenceOf (",", false, false).fromFirstOccurrenceOf (" ", false, false)
+                                     + (set ? "" : " (setConfig/getConfig)") + " -> " + state.describe ().upToFirstOccurrenceOf (",", false, false));
+            }
+        }
+        check (framingFailures.isEmpty (), juce::String (static_cast<int> (framings.size ())) + " data bits/parity/stop bits combinations reach the device, and read back"
+                                           + (framingFailures.isEmpty () ? juce::String () : ": " + framingFailures.joinIntoString (", ")));
+
+        // a USB device is sent bytes whatever the framing, so 5 data bits doesn't mask the top 3 bits off
+        {
+            SerialPortConfig config { options.bps, 5, SerialPortConfig::SERIALPORT_PARITY_MARK, SerialPortConfig::STOPBITS_1ANDHALF, SerialPortConfig::FLOWCONTROL_NONE };
+            fixture->port.setConfig (config);
+            const auto data { makeTestData (4096, 14) };
+            check (echoTimeMs (*fixture, data, 3000) >= 0.0, "data is echoed unchanged at 5M1.5, all 8 bits of each byte");
+        }
+
+        // flow control. with none or XON/XOFF, DTR and RTS are simply on. with RTS/CTS the driver drives RTS
+        for (const auto flowControl : { SerialPortConfig::FLOWCONTROL_XONXOFF, SerialPortConfig::FLOWCONTROL_HARDWARE, SerialPortConfig::FLOWCONTROL_NONE })
+        {
+            const juce::String name { flowControl == SerialPortConfig::FLOWCONTROL_NONE ? "no flow control"
+                                    : flowControl == SerialPortConfig::FLOWCONTROL_XONXOFF ? "XON/XOFF" : "RTS/CTS" };
+            SerialPortConfig config { options.bps, 8, SerialPortConfig::SERIALPORT_PARITY_NONE, SerialPortConfig::STOPBITS_1, flowControl };
+            SerialPortConfig readBack;
+            check (fixture->port.setConfig (config) && fixture->port.getConfig (readBack) && readBack.flowcontrol == flowControl, name + ": set and read back");
+            state = queryDevice (*fixture);
+            if (flowControl == SerialPortConfig::FLOWCONTROL_HARDWARE)
+            {
+                check (state.dtr, name + ": DTR is on");
+                info (name + ": RTS is " + (state.rts ? "on" : "off") + ", driven by the driver's handshake");
+                // CDC ACM has no CTS line, so whether data flows depends on what the driver assumes CTS is
+                const auto ms { echoTimeMs (*fixture, makeTestData (256, 15), 3000) };
+                info (name + ": " + (ms >= 0.0 ? "data still flows, the driver treats the missing CTS as on" : "data does not flow, the driver treats the missing CTS as off"));
+            }
+            else
+            {
+                check (state.dtr && state.rts, name + ": DTR and RTS are on (" + state.describe () + ")");
+                check (echoTimeMs (*fixture, makeTestData (256, 15), 3000) >= 0.0, name + ": data flows");
+            }
+        }
+
+        // XON/XOFF: the device sends XOFF, then XON a second later
+        {
+            SerialPortConfig config { options.bps, 8, SerialPortConfig::SERIALPORT_PARITY_NONE, SerialPortConfig::STOPBITS_1, SerialPortConfig::FLOWCONTROL_XONXOFF };
+            fixture->port.setConfig (config);
+            readAll (*fixture->input);
+            sendDeviceCommand (*fixture, 'X');
+            juce::Thread::sleep (200);
+            const auto xoffPassedOn { containsByte (readAll (*fixture->input), 0x13) };
+
+            // the XON may arrive with the echo, so look for the echo in whatever arrives
+            const auto startTicks { juce::Time::getHighResolutionTicks () };
+            fixture->output->write ("paused", 6);
+            juce::MemoryBlock received;
+            auto echoMs { -1.0 };
+            while (ticksToMs (juce::Time::getHighResolutionTicks () - startTicks) < 3000.0)
+            {
+                const auto more { readAll (*fixture->input) };
+                received.append (more.getData (), more.getSize ());
+                if (std::string (static_cast<const char*> (received.getData ()), received.getSize ()).find ("paused") != std::string::npos)
+                {
+                    echoMs = ticksToMs (juce::Time::getHighResolutionTicks () - startTicks);
+                    break;
+                }
+                juce::Thread::sleep (2);
+            }
+            juce::Thread::sleep (1000);
+            const auto rest { readAll (*fixture->input) };
+            received.append (rest.getData (), rest.getSize ());
+            const auto xonPassedOn { containsByte (received, 0x11) };
+            info ("XON/XOFF: after the device sent XOFF, an echo took " + (echoMs >= 0.0 ? juce::String (echoMs, 1) + " ms" : juce::String ("over 3 s"))
+                  + (echoMs > 500.0 ? ", so the driver paused sending until XON" : ", so the driver did not pause sending"));
+            info (juce::String ("XON/XOFF: the driver ") + (xoffPassedOn || xonPassedOn ? "passed the XOFF/XON characters on to the application" : "kept the XOFF/XON characters to itself"));
+            config.flowcontrol = SerialPortConfig::FLOWCONTROL_NONE;
+            fixture->port.setConfig (config);
+        }
+
+        state = queryDevice (*fixture);
+        check (state.numOverflows == 0, "the device's receive buffer never overflowed");
+
+        // closing the port drops DTR, which tells a device the application has gone
+        const auto dtrDropsBefore { state.numDtrDrops };
+        fixture = nullptr;
+        juce::Thread::sleep (200);
+        fixture = std::make_unique<Fixture> (link, options);
+        state = queryDevice (*fixture);
+        check (state.valid && state.numDtrDrops > dtrDropsBefore && state.dtr, "closing the port turned DTR off, reopening it turned DTR on again");
+    }
+
+    //==============================================================================
     void listPorts ()
     {
         const auto ports { SerialPort::getSerialPortPaths () };
@@ -899,6 +1145,11 @@ namespace
             skip ("Changing the receive callback while data is arriving", "needs a far end");
         }
 
+        if (link.reportsLineState ())
+            testDeviceLineState (link, options);
+        else
+            skip ("Line settings and control lines, as the device sees them", "needs a device which reports them (tests/daisy_echo)");
+
         if (link.canHangUp ())
             testConnectionLost (link, options, false);
         else if (options.unplugTest)
@@ -913,6 +1164,8 @@ namespace
                      "  (no mode)            macOS/Linux: test over a pseudo terminal pair. Windows: list the ports\n"
                      "  --pair PORT1 PORT2   test over two ports connected to each other (com0com, null modem cable)\n"
                      "  --echo PORT          test with a device which echoes everything back (tests/arduino_echo)\n"
+                     "  --daisy PORT         as --echo, with a Daisy Seed running tests/daisy_echo, which also reports\n"
+                     "                       the line settings and control lines it receives\n"
                      "  --write-only PORT    only the send tests, for a port with nothing connected\n"
                      "  --list               list the serial ports\n"
                      "  --baud N             the rate to test at, default 115200\n"
@@ -954,6 +1207,10 @@ static int runAllTests (const juce::StringArray& args)
     else if (const auto echoIndex { args.indexOf ("--echo") }; echoIndex >= 0)
     {
         link = std::make_unique<EchoLink> (args[echoIndex + 1]);
+    }
+    else if (const auto daisyIndex { args.indexOf ("--daisy") }; daisyIndex >= 0)
+    {
+        link = std::make_unique<DaisyLink> (args[daisyIndex + 1]);
     }
     else if (const auto writeOnlyIndex { args.indexOf ("--write-only") }; writeOnlyIndex >= 0)
     {

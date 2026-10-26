@@ -83,6 +83,9 @@ public:
     // false if the driver ignores parity and stop bits (pseudo terminals)
     virtual bool supportsLineSettings () const { return true; }
 
+    // true if the device reports the line coding and control lines the host's driver sent it (tests/daisy_echo)
+    virtual bool reportsLineState () const { return false; }
+
     // how long the device needs after the port is opened before it can receive
     virtual int getSettleTimeMs () const { return 0; }
 
@@ -238,6 +241,22 @@ public:
     // opening the port resets Arduinos with a USB serial bridge (Uno, Mega, Nano), and the bootloader ignores
     // anything sent while it runs
     int getSettleTimeMs () const override { return 2500; }
+
+private:
+    juce::String portUnderTest;
+};
+
+// a Daisy Seed running tests/daisy_echo, which echoes like arduino_echo, and also reports the USB CDC requests it
+// has received. it does not reset when the port is opened
+class DaisyLink : public Link
+{
+public:
+    explicit DaisyLink (const juce::String& path) : portUnderTest { path } {}
+    juce::String getName () const override { return "Daisy " + portUnderTest; }
+    juce::String getPortUnderTest () const override { return portUnderTest; }
+    bool echoes () const override { return true; }
+    bool reportsLineState () const override { return true; }
+    int getSettleTimeMs () const override { return 200; }
 
 private:
     juce::String portUnderTest;
